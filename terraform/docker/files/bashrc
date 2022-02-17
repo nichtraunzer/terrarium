@@ -1,0 +1,57 @@
+######################################################
+# Welcome Message
+VERSION="v20211019"
+
+echo "# ############################################################"
+echo "# AWS QS / Terraform Development Environment - $VERSION"
+echo "# ############################################################"
+
+#####################################################
+# INITIALIZE SHELL
+
+# DEV_HOME set in Dockerfile
+CONFIGURED=$DEV_HOME/.configured
+GITCONF=$CONFIGURED/gitconfig
+REQUENV=$CONFIGURED/envs.sh
+SETUP=$HOME/.setup
+
+# check for persistent storage
+if mountpoint -q $DEV_HOME; then
+  if [ -d "$CONFIGURED" ]; then
+    echo "> system configured     ..." 
+    echo "> copy gitconfig        ..." 
+    cp $GITCONF $HOME/.gitconfig
+  else
+    echo "> starting setup script ..."
+   
+    source $SETUP/setup.sh
+    mkdir $CONFIGURED
+    # Copy envs.sh
+    cp $SETUP/envs.sh $REQUENV
+    # copy git conig to mount point
+    cp $HOME/.gitconfig $GITCONF
+  fi
+  
+  ################################################
+  # source envs.sh
+  if [ -f "$REQUENV" ]; then
+    echo "> set environment Vars  ..." 
+    source $REQUENV
+    echo "> Ready! " 
+  else 
+    echo "> can not source envs.sh."   
+    echo "> please store your envs.sh in $CONFIGURED!"
+  fi
+else
+  echo "> there is no persistent storage mounted ... exiting!"
+  exit 1
+fi
+
+####################################################
+# Finalize Prompt
+
+source ~/.prompt.sh
+source ~/.git-completion.bash
+cd
+
+#eof
