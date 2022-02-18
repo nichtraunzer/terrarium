@@ -38,7 +38,7 @@ jobs:
         with:
           context: .
           push: false
-          file: terraform/Dockerfile.${{ matrix.image }}
+          file: terraform/docker/Dockerfile.${{ matrix.image }}
           tags: localhost:5000/ods-contrib-terraform-${{ matrix.image }}:latest
           outputs: type=docker,dest=/tmp/image-ods-contrib-terraform-${{ matrix.image }}.tar
       -

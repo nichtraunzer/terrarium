@@ -48,6 +48,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: terraform/Dockerfile.${{ matrix.image }}
+          file: terraform/docker/Dockerfile.${{ matrix.image }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/ods-${{ matrix.image }}:${{ github.event.release.tag_name }}
