@@ -1,0 +1,119 @@
+---
+name: terraform image
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+env:
+  # github.repository as <account>/<repo>
+  IMAGE_BASE: ${{ github.repository }}
+
+jobs:
+  build-images:
+    name: Build images
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        image: ["rocky8"]
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
+      -
+        name: Build image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: false
+          file: terraform/Dockerfile.${{ matrix.image }}
+          tags: localhost:5000/ods-contrib-terraform-${{ matrix.image }}:latest
+          outputs: type=docker,dest=/tmp/image-ods-contrib-terraform-${{ matrix.image }}.tar
+      -
+        name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: buildx-image-ods-contrib-terraform-${{ matrix.image }}
+          path: /tmp/image-ods-contrib-terraform-${{ matrix.image }}.tar
+          retention-days: 1
+
+  pipeline-tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: build-images
+    env:
+      IMAGES: rocky8
+    steps:
+      -
+        name: Download image artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: /tmp
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      -
+        name: Setup KinD cluster with internal registry
+        working-directory: scripts
+        run: ./kind-with-registry.sh
+      -
+        name: Push images to local registry
+        run: |
+          images=(${{ env.IMAGES }})
+          for image in ${images[*]}
+          do
+            echo "::group::Push ods-$image to local registry"
+            docker load --input /tmp/buildx-image-ods-$image/image-ods-$image.tar
+            docker push localhost:5000/nichtraunzer/ods-contrib-terraform-$image:latest
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]
+            then
+              docker rmi localhost:5000/nichtraunzer/ods-contrib-terraform-$image:latest
+            fi
+            echo "::endgroup::"
+          done
+      -
+        name: Delete image tarballs
+        run: |
+          rm -rf /tmp/buildx-image-*
+      -
+        name: Show disk space
+        run: df -h
+      -
+        name: Run tests
+        run: |
+          set -o pipefail
+          terraform --version
+      -
+        name: Log into ghcr.io
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Push images to ghcr.io
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          images=(${{ env.IMAGES }})
+          for image in ${images[*]}
+          do
+            echo "::group::Push ods-$image to ghcr.io"
+            docker tag localhost:5000/nichtraunzer/ods-contrib-terraform-$image:latest ghcr.io/${{ env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
+            docker push ghcr.io/${{ env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
+            echo "::endgroup::"
+          done
