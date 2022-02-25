@@ -49,14 +49,10 @@ jobs:
           path: /tmp/image-ods-contrib-terraform-${{ matrix.image }}.tar
           retention-days: 1
       -
-        name: Push images to ghcr.io
+        name: Push image to ghcr.io
         if: ${{ github.event_name != 'pull_request' }}
         run: |
-          images=(${{ env.IMAGES }})
-          for image in ${images[*]}
-          do
-            echo "::group::Push ods-$image to ghcr.io"
-            docker tag localhost:5000/nichtraunzer/ods-contrib-terraform-$image:latest ghcr.io/${{ env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
-            docker push ghcr.io/${{ env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
-            echo "::endgroup::"
-          done
+          image=${{ matrix.image }}
+          echo "Push ods-contrib-terraform-$image to ghcr.io"
+          docker tag localhost:5000/nichtraunzer/ods-contrib-terraform-$image:latest ghcr.io/${{ env.IMAGE_BASE }}/nichtraunzer/ods-contrib-terraform-$image:latest
+          docker push ghcr.io/nichtraunzer/${{  env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
