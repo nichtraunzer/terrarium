@@ -54,5 +54,5 @@ jobs:
         run: |
           image=${{ matrix.image }}
           echo "Push ods-contrib-terraform-$image to ghcr.io"
-          docker tag localhost:5000/nichtraunzer/ods-contrib-terraform-$image:latest ghcr.io/${{ env.IMAGE_BASE }}/nichtraunzer/ods-contrib-terraform-$image:latest
+          docker tag localhost:5000/ods-contrib-terraform-$image:latest ghcr.io/nichtraunzer/${{ env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
           docker push ghcr.io/nichtraunzer/${{  env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
