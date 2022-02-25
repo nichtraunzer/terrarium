@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - master
-  pull_request:
+  #pull_request:
 
 env:
   # github.repository as <account>/<repo>
@@ -33,26 +33,18 @@ jobs:
             image=moby/buildkit:master
             network=host
       -
-        name: Build image
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Build and push image
         uses: docker/build-push-action@v2
         with:
           context: .
-          push: false
+          push: true
           file: terraform/docker/Dockerfile.${{ matrix.image }}
-          tags: localhost:5000/ods-contrib-terraform-${{ matrix.image }}:latest
-          outputs: type=docker,dest=/tmp/image-ods-contrib-terraform-${{ matrix.image }}.tar
-      -
-        name: Upload artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: buildx-image-ods-contrib-terraform-${{ matrix.image }}
-          path: /tmp/image-ods-contrib-terraform-${{ matrix.image }}.tar
-          retention-days: 1
-      -
-        name: Push image to ghcr.io
-        if: ${{ github.event_name != 'pull_request' }}
-        run: |
-          image=${{ matrix.image }}
-          echo "Push ods-contrib-terraform-$image to ghcr.io"
-          docker tag localhost:5000/ods-contrib-terraform-$image:latest ghcr.io/nichtraunzer/${{ env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
-          docker push ghcr.io/nichtraunzer/${{  env.IMAGE_BASE }}/ods-contrib-terraform-$image:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
