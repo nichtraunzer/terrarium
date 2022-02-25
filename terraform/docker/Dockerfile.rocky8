@@ -113,7 +113,8 @@ RUN chown -R 1001:0 $HOME \
     && mkdir -p $GEM_HOME \
     && chmod 2770 $GEM_HOME
 
-COPY Gemfile Gemfile.lock $GEM_HOME/
+COPY Gemfile.lock $GEM_HOME/
+COPY Gemfile $GEM_HOME/
 
 RUN chown -R 1001:0 $GEM_HOME \
     && chmod -R g+rw $GEM_HOME \
