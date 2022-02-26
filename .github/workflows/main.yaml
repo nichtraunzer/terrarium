@@ -1,5 +1,5 @@
 ---
-name: terraform image
+name: terraform tools for dev environment
 
 on:
   push:
@@ -43,8 +43,8 @@ jobs:
         name: Build and push image
         uses: docker/build-push-action@v2
         with:
-          context: .
+          context: ./terraform/docker
           push: true
           file: terraform/docker/Dockerfile.${{ matrix.image }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
+            ghcr.io/${{ github.repository_owner }}/ods-contrib-tf-dev-env${{ matrix.image }}:latest

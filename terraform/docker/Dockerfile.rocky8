@@ -24,9 +24,7 @@ ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV HOME=/home/iamterraforming
 
 
-COPY ./terraform/docker/python_requirements /tmp/requirements.txt
-COPY ./terraform/docker/Gemfile.lock $GEM_HOME/
-COPY ./terraform/docker/Gemfile $GEM_HOME/
+COPY python_requirements /tmp/requirements.txt
 
 RUN set -x \
     && dnf -y install $INSTALL_PKGS
@@ -114,6 +112,8 @@ RUN chown -R 1001:0 $HOME \
     && chmod -R g+rw $HOME \
     && mkdir -p $GEM_HOME \
     && chmod 2770 $GEM_HOME
+
+COPY Gemfile Gemfile.lock $GEM_HOME/
 
 RUN chown -R 1001:0 $GEM_HOME \
     && chmod -R g+rw $GEM_HOME \
