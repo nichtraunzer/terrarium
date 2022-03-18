@@ -1,5 +1,5 @@
 ---
-name: TERRARIUM - terraform tools for dev environment
+name: terrarium - terraform tools for dev environment
 
 on:
   push:
