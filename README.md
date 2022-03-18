@@ -1,4 +1,0 @@
-# Terraform Development Environment
-
-## Tooling
-
