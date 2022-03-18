@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        image: ["rocky8"]
+        image: ["terrarium"]
     permissions:
       contents: read
       packages: write
