@@ -1,0 +1,8 @@
+{
+  "image": "ghcr.io/nichtraunzer/terrarium:latest",
+  "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash && wget -O $HOME/.bashrc https://gist.githubusercontent.com/Nilpo/26754d178f6690046893/raw/453fc3425305c6242871314c351778c17b96afd0/.bashrc && source ~/.bashrc",
+  "containerEnv": {
+    "AWS_DEFAULT_REGION": "eu-west-1",
+    "AWS_REGION": "eu-west-1"
+  }
+}
