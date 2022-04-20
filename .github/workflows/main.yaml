@@ -54,7 +54,7 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --output "type=image,push=false" \
-            --file ./terraform/docker/Dockerfile ./terraform/docker
+            --file ./terraform/docker/Dockerfile.terrarium ./terraform/docker
       -
         name: Docker Buildx (push)
         if: success() && github.event_name != 'pull_request'
