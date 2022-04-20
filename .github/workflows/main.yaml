@@ -47,6 +47,16 @@ jobs:
             --platform linux/amd64,linux/arm64 \
             --output "type=image,push=false" \
             --file ./terraform/docker/Dockerfile ./terraform/docker
+      -
+        name: Docker Buildx (push)
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }}
+      -
+        name: Inspect image
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          docker buildx imagetools inspect ${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}
       #-
       #  name: Build and push image
       #  uses: docker/build-push-action@v2
