@@ -21,7 +21,7 @@ ENV TERRAFORM_VERSION=1.0.11 \
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 unzip wget \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl sqlite-devel xz"
 ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
-ENV HOME=/home/iamterraforming
+ENV HOME=/home/terrarium
 
 
 COPY python_requirements /tmp/requirements.txt
