@@ -52,9 +52,6 @@ RUN pip3 install --upgrade pip \
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
     && pip config list
 
-# Install python requirements
-RUN python3 -m pip install -r /tmp/requirements.txt
-
 # Install awscli2
 RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
     && curl "https://awscli.amazonaws.com/awscli-exe-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awscliv2.zip" \
@@ -76,6 +73,9 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
       pip3 install aws-sam-cli; \
     fi \
     && sam --version
+
+# Install python requirements
+RUN python3 -m pip install -r /tmp/requirements.txt
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
@@ -181,8 +181,10 @@ RUN wget -q -O /tmp/tci.tar.gz "https://github.com/nichtraunzer/terraform-config
     && rm -rf /tmp/tci.tar.gz 
 
 # Install mozilla/sops and AGE
-RUN yum install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.x86_64.rpm \
-    && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz \
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
+    && yum install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
+    && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar xzf /tmp/age.tar.gz -C /usr/local/bin \
     && rm -f /tmp/age.tar.gz
 
