@@ -132,8 +132,8 @@ RUN yum -y install epel-release \
 ## Install consul-cli
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip consul_${CONSUL_VERSION}_linux_amd64.zip -d /usr/local/bin \
-    && rm -f consul_${CONSUL_VERSION}_linux_amd64.zip \
+    && unzip consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip -d /usr/local/bin \
+    && rm -f consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip \
     && chmod +x /usr/local/bin/consul && /usr/local/bin/consul -version
     
 RUN chown -R 1001:0 $HOME \
