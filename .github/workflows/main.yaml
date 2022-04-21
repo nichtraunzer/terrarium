@@ -76,20 +76,20 @@ jobs:
         if: success() && github.event_name != 'pull_request'
         run: |
           docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }}
-      '-
-        name: Inspect image
-        if: always() && github.event_name != 'pull_request'
-        run: |
-          docker buildx imagetools inspect ${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}'
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: ./terraform/docker
-          file: terraform/docker/Dockerfile.${{ matrix.image }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.docker_image_metadata.outputs.tags }}
-          labels: ${{ steps.docker_image_metadata.outputs.labels }}
+      # -
+      #   name: Inspect image
+      #   if: always() && github.event_name != 'pull_request'
+      #   run: |
+      #     echo docker buildx imagetools inspect ${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}
+      # - name: Build and push
+      #   uses: docker/build-push-action@v2
+      #   with:
+      #     context: ./terraform/docker
+      #     file: terraform/docker/Dockerfile.${{ matrix.image }}
+      #     platforms: linux/amd64,linux/arm64
+      #     push: ${{ github.event_name != 'pull_request' }}
+      #     tags: ${{ steps.docker_image_metadata.outputs.tags }}
+      #     labels: ${{ steps.docker_image_metadata.outputs.labels }}
       #-
       #  name: Build and push image
       #  uses: docker/build-push-action@v2
