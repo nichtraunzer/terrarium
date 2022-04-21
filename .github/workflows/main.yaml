@@ -35,9 +35,6 @@ jobs:
             image=moby/buildkit:master
             network=host
       -
-        name: Available platforms
-        run: echo ${{ steps.buildx.outputs.platforms }}
-      -
         name: Login to ghcr.io
         if: success() && github.event_name != 'pull_request'
         uses: docker/login-action@v1
@@ -45,8 +42,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: docker_image_metadata # you'll use this in the next step
+        uses: docker/metadata-action@v3
+        with:
+          # list of Docker images to use as base name for tags
+          images: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
+          # Docker tags based on the following events/attributes
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
       -
-        name: Buildx
+        name: Execute Buildx
       #  #uses: docker/login-action@v1 
       #  with:
       #    registry: ghcr.io
@@ -54,7 +67,8 @@ jobs:
       #    password: ${{ secrets.GITHUB_TOKEN }}
         run: |
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            #--platform linux/amd64,linux/arm64 \
+            --platform linux/arm64 \
             --output "type=image,push=false" \
             --file ./terraform/docker/Dockerfile.terrarium ./terraform/docker
       -
@@ -62,11 +76,20 @@ jobs:
         if: success() && github.event_name != 'pull_request'
         run: |
           docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }}
-      -
+      '-
         name: Inspect image
         if: always() && github.event_name != 'pull_request'
         run: |
-          docker buildx imagetools inspect ${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}
+          docker buildx imagetools inspect ${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}'
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: ./terraform/docker
+          file: terraform/docker/Dockerfile.${{ matrix.image }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.docker_image_metadata.outputs.tags }}
+          labels: ${{ steps.docker_image_metadata.outputs.labels }}
       #-
       #  name: Build and push image
       #  uses: docker/build-push-action@v2
