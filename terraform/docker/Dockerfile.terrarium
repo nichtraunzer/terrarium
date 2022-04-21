@@ -61,17 +61,20 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
     && unzip -qq awscliv2.zip \
     && ./aws/install \
     && rm -f awscliv2.zip \
-    && rm -Rf ./aws
+    && rm -Rf ./aws \
+    && /usr/local/bin/aws --version
 
 # Install awssamcli
 RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${$TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
+    && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
     && unzip -qq -d awssam awssam.zip \
-    && ./awssam/install && rm -f awssam.zip && rm -Rf ./awssam
+    && ./awssam/install \
+    && rm -f awssam.zip \
+    && rm -Rf ./awssam
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
-    && wget -q "https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-${TARGETOS}-${$TARGETARCH_SYNONYM_SHORT}.tar.xz" \
+    && wget -q "https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz" \
     && xzcat node-v${NODEJS_VERSION}-${TARGETOS}-${$TARGETARCH_SYNONYM_SHORT}.tar.xz | tar xpf - -C /opt/ \
     && mv /opt/node-v${NODEJS_VERSION}-${TARGETOS}-${$TARGETARCH_SYNONYM_SHORT} /opt/node \
     && /opt/node/bin/npm install -g aws-cdk \
