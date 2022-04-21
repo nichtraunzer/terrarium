@@ -80,8 +80,8 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
     && wget -q "https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz" \
-    && xzcat node-v${NODEJS_VERSION}-${TARGETOS}-${$TARGETARCH_SYNONYM_SHORT}.tar.xz | tar xpf - -C /opt/ \
-    && mv /opt/node-v${NODEJS_VERSION}-${TARGETOS}-${$TARGETARCH_SYNONYM_SHORT} /opt/node \
+    && xzcat node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz | tar xpf - -C /opt/ \
+    && mv /opt/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT} /opt/node \
     && /opt/node/bin/npm install -g aws-cdk \
     && chown -R 1001:0 /opt/node && chmod +x /opt/node/bin/* \
     && node --version \
