@@ -65,12 +65,17 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
     && /usr/local/bin/aws --version
 
 # Install awssamcli
-RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
-    && unzip -qq -d awssam awssam.zip \
-    && ./awssam/install \
-    && rm -f awssam.zip \
-    && rm -Rf ./awssam
+RUN if [ x${TARGETARCH} == "xamd64" ]; then \
+      TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "use_pip") \
+      && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
+      && unzip -qq -d awssam awssam.zip \
+      && ./awssam/install \
+      && rm -f awssam.zip \
+      && rm -Rf ./awssam; \
+    else \
+      pip3 install aws-sam-cli; \
+    fi \
+    && sam --version
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
