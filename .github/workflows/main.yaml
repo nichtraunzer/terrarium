@@ -48,7 +48,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           # Docker tags based on the following events/attributes
           tags: |
             type=schedule
@@ -58,6 +58,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+            type=latest
       # -
       #   name: Execute Buildx
       #   id: buildx_build
