@@ -50,6 +50,8 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           # Docker tags based on the following events/attributes
+          flavor: |
+            latest=auto
           tags: |
             type=schedule
             type=ref,event=branch
@@ -58,7 +60,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
-            type=latest
+
       # -
       #   name: Execute Buildx
       #   id: buildx_build
