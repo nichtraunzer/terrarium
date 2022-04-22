@@ -20,7 +20,7 @@ ENV TERRAFORM_VERSION=1.0.11 \
     RBENV_ROOT=/opt/rbenv \
     RBENV_SHELL=bash \
     TCI_VERSION=0.2.0 \
-    SOPS_VERSION=3.7.1 \
+    SOPS_VERSION=3.7.2 \
     AGE_VERSION=1.0.0
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
@@ -173,7 +173,6 @@ RUN cd /opt \
     && cd $GEM_HOME \
     && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=8 \
     && rm -Rf $HOME/.bundle/cache
-
 
 # Install Terraform Inspec
 RUN wget -q -O /tmp/tci.tar.gz "https://github.com/nichtraunzer/terraform-config-inspect/releases/download/v${TCI_VERSION}/terraform-config-inspect_${TCI_VERSION}_linux_amd64.tar.gz" \
