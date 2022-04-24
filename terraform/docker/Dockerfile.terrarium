@@ -140,7 +140,7 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
     && yum install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
     && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
-    && tar xzf /tmp/age.tar.gz -C /usr/local/bin \
+    && tar zxpf /tmp/age.tar.gz --strip-components=1 -C /usr/local/bin age/age age/age-keygen \
     && rm -f /tmp/age.tar.gz \
     && /usr/local/bin/sops --version \
     && /usr/local/bin/age --version
