@@ -120,7 +120,7 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ \
     && rm -f /tmp/terraform-config-inspect.tar.gz \
     && chmod 755 /usr/local/bin/terraform-config-inspect \
-    && /usr/local/bin/terraform-config-inspect --help
+    && /usr/local/bin/terraform-config-inspect
 
 # Install Terraform Docs
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
