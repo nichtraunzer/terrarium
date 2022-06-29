@@ -1,4 +1,5 @@
 {
+  // DO not forget to remove all comments when you use this example file as JSON does not allow to have comments
   "image": "ghcr.io/nichtraunzer/terrarium:latest",
   // add git completion and beautify the git prompt
   "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash && wget -O $HOME/.bashrc https://gist.githubusercontent.com/Nilpo/26754d178f6690046893/raw/453fc3425305c6242871314c351778c17b96afd0/.bashrc && source ~/.bashrc",
