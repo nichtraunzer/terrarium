@@ -23,6 +23,8 @@ ENV TERRAFORM_VERSION=1.0.11 \
     AGE_VERSION=1.0.0
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
+    python38 python38-devel python38-pip python38-setuptools \
+    python39 python39-devel python39-pip python39-setuptools \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl sqlite-devel xz"
 ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV HOME=/home/terrarium
@@ -41,7 +43,9 @@ RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
     && pip3 -V \
-    && pip3 install virtualenv pycodestyle
+    && pip3 install virtualenv pycodestyle \
+    && pip3.8 install virtualenv pycodestyle \
+    && pip3.9 install virtualenv pycodestyle
 
 # Configure PIP SSL validation
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
@@ -70,7 +74,9 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
     && sam --version
 
 # Install python requirements
-RUN python3 -m pip install -r /tmp/requirements.txt
+RUN python3 -m pip install -r /tmp/requirements.txt \
+    && python3.8 -m pip install -r /tmp/requirements.txt \
+    && python3.9 -m pip install -r /tmp/requirements.txt
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
