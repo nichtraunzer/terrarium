@@ -14,12 +14,12 @@ Please note: `json` files do not support comments. That is why you should use th
 
 ```javascript
 {
-	// the "image" property defines the docker image that should be used as development container
-	"image": "ghcr.io/nichtraunzer/terrarium:latest",
+  // the "image" property defines the docker image that should be used as development container
+  "image": "ghcr.io/nichtraunzer/terrarium:latest",
 
   // this "postStartCommand" adds git completion and beautifies the git prompt
   "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash && wget -O $HOME/.bashrc https://gist.githubusercontent.com/Nilpo/26754d178f6690046893/raw/453fc3425305c6242871314c351778c17b96afd0/.bashrc && source ~/.bashrc",
-	
+
   // inside the "containerEnv" object we add the environment variables that should be available inside of the container
   "containerEnv": {
     "AWS_DEFAULT_REGION": "eu-west-1",
