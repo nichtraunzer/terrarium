@@ -1,6 +1,6 @@
 ---
 name: Release images
-on:
+onOFF:
   release:
     types:
       - released
