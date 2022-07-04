@@ -159,12 +159,12 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
     && echo rm -f /tmp/starship.tar.gz \
     && wget -q -O /tmp/starship.sh https://starship.rs/install.sh \
     && chmod +x /tmp/starship.sh \
-    && bash /tmp/starship.sh \
+    && sh /tmp/starship.sh \
     && echo wget -q -O /tmp/zoxide.tar.gz https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-${TARGETARCH_SYNONYM}-unknown-${TARGETOS}-musl.tar.gz \
     && echo rm -f /tmp/zoxide.tar.gz \
     && wget -q -O /tmp/zoxide.sh https://webinstall.dev/zoxide \
     && chmod +x /tmp/zoxide.sh \
-    && bash /tmp/zoxide.sh \
+    && sh /tmp/zoxide.sh \
     && rm -f /tmp/zoxide.sh
 
 RUN chown -R 1001:0 $HOME \
