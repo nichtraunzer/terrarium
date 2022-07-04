@@ -20,7 +20,9 @@ ENV TERRAFORM_VERSION=1.0.11 \
     RBENV_ROOT=/opt/rbenv \
     RBENV_SHELL=bash \
     SOPS_VERSION=3.7.2 \
-    AGE_VERSION=1.0.0
+    AGE_VERSION=1.0.0 \
+    STARSHIP_VERSION=1.9.1 \
+    ZOXIDE_VERSION=0.8.2
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python38 python38-devel python38-pip python38-setuptools \
@@ -150,6 +152,20 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && rm -f /tmp/age.tar.gz \
     && /usr/local/bin/sops --version \
     && /usr/local/bin/age --version
+
+# Install starship and zoxide
+RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
+    && echo wget -q -O /tmp/starship.tar.gz https://github.com/starship/starship/releases/download/v${STARSHIP_VERSION}/starship-${TARGETARCH_SYNONYM}-unknown-${TARGETOS}-gnu.tar.gz \
+    && echo rm -f /tmp/starship.tar.gz \
+    && wget -q -O /tmp/starship.sh https://starship.rs/install.sh \
+    && chmod +x /tmp/starship.sh \
+    && bash /tmp/starship.sh \
+    && echo wget -q -O /tmp/zoxide.tar.gz https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-${TARGETARCH_SYNONYM}-unknown-${TARGETOS}-musl.tar.gz \
+    && echo rm -f /tmp/zoxide.tar.gz \
+    && wget -q -O /tmp/zoxide.sh https://webinstall.dev/zoxide \
+    && chmod +x /tmp/zoxide.sh \
+    && bash /tmp/zoxide.sh \
+    && rm -f /tmp/zoxide.sh
 
 RUN chown -R 1001:0 $HOME \
     && chmod -R g+rw $HOME \
