@@ -189,5 +189,8 @@ RUN cd /opt \
     && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=8 \
     && rm -Rf $HOME/.bundle/cache
 
+RUN curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+RUN pip install checkov
+
 WORKDIR $HOME
 CMD /bin/bash -i "$HOME/.bash_profile"
