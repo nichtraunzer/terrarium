@@ -15,6 +15,7 @@ jobs:
       contents: write
       security-events: write # allow github/codeql-action/upload-sarif
     name: Scan for Security Vulnerabilities
+    if: ${{ github.repository == 'nichtraunzer/terrarium' }}
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
