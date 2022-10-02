@@ -21,8 +21,8 @@ ENV TERRAFORM_VERSION=1.0.11 \
     RBENV_SHELL=bash \
     SOPS_VERSION=3.7.2 \
     AGE_VERSION=1.0.0 \
-    STARSHIP_VERSION=1.9.1 \
-    ZOXIDE_VERSION=0.8.2
+    STARSHIP_VERSION=1.10.3 \
+    ZOXIDE_VERSION=0.8.3
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python38 python38-devel python38-pip python38-setuptools \
