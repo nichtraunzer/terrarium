@@ -47,7 +47,7 @@ jobs:
           format: 'template'
           template: '@/contrib/html.tpl'
           output: 'public/index.html'
-          exit-code: '1'
+          #exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH,MEDIUM'
@@ -59,3 +59,7 @@ jobs:
       #  with:
       #    github_token: ${{ secrets.GITHUB_TOKEN }}
       #    publish_dir: ./public
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'public/trivy-results.sarif'
