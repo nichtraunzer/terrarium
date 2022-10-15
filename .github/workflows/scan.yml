@@ -28,7 +28,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_BASE }}/terrarium:latest
+          image-ref: ${{ env.IMAGE_BASE }}:latest
           format: 'sarif'
           output: 'public/trivy-results.sarif'
           exit-code: '1'
