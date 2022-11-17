@@ -7,14 +7,14 @@ ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILD
 #ENV TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64")
 #ENV TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64")
 
-ENV TERRAFORM_VERSION=1.0.11 \
+ENV TERRAFORM_VERSION=1.2.9 \
     TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
     TERRAFORM_DOCS_VERSION=v0.16.0 \
     RUBY_VERSION=2.7.5 \
     PACKER_VERSION=1.7.10 \
     CONSUL_VERSION=1.11.2 \
     TFENV_VERSION=2.2.3 \
-    NODEJS_VERSION=16.13.2 \
+    NODEJS_VERSION=16.17.1 \
     BUNDLER_VERSION=2.2.23 \
     GEM_HOME=/opt/bundle \
     RBENV_ROOT=/opt/rbenv \
@@ -174,7 +174,7 @@ COPY Gemfile Gemfile.lock $GEM_HOME/
 RUN chown -R 1001:0 $GEM_HOME \
     && chmod -R g+rw $GEM_HOME \
     && ls -lisa $HOME $GEM_HOME
-    
+
 # RUN ls $JAVA_HOME/lib/security/cacerts \
 #    && chown 1001:0 $JAVA_HOME/lib/security/cacerts \
 #     && chmod g+w $JAVA_HOME/lib/security/cacerts
@@ -182,7 +182,7 @@ RUN chown -R 1001:0 $GEM_HOME \
 # setup ruby env and bundler gems
 # RUBY https://syslint.com/blog/tutorial/how-to-install-ruby-on-rails-with-rbenv-on-centos-7-or-rhel-7/
 RUN cd /opt \
-    && umask 0002 \ 
+    && umask 0002 \
     && git clone https://github.com/rbenv/rbenv.git /opt/rbenv \
     && echo 'export PATH="/opt/rbenv/shims:/opt/rbenv/bin:$PATH"' >> ~/.bash_profile \
     && echo 'eval "$(rbenv init -)"' >> ~/.bash_profile \
