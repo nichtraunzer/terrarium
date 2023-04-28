@@ -1,10 +1,10 @@
 #  
-boto3~=1.23
+boto3~=1.26
 requests~=2.27
 simplejson~=3.19
 argparse~=1.4
 botocore
-pipenv~=2022.4
+pipenv~=2023.4
 python-hcl2~=2.0 ## TODO 4.3.0 https://github.com/amplify-education/python-hcl2
-pre-commit~=3.27
+pre-commit~=2.21 ## TODO 3.x requires Python 3.8
 azure-cli~=2.48
