@@ -45,6 +45,10 @@ RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
     && pip3 -V \
+    && pip3.8 install --upgrade pip \
+    && pip3.8 -V \
+    && pip3.9 install --upgrade pip \
+    && pip3.9 -V \
     && pip3 install virtualenv pycodestyle \
     && pip3.8 install virtualenv pycodestyle \
     && pip3.9 install virtualenv pycodestyle
