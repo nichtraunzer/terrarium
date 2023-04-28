@@ -52,7 +52,8 @@ RUN pip3 install --upgrade pip \
     && pip3 install virtualenv pycodestyle \
     && pip3.8 install virtualenv pycodestyle \
     && pip3.9 install virtualenv pycodestyle \
-    && alternatives --set python /usr/bin/python3.9
+    && alternatives --set python /usr/bin/python3.9 \
+    && alternatives --set python3 /usr/bin/python3.9
 
 # Configure PIP SSL validation
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
