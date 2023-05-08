@@ -28,3 +28,18 @@ If the Cloud Quickstarter does not contain it already simply create a [`.devcont
 - [`examples`](examples) - Contains a more sophisticated example.
 - [`terraform`](terraform) - Contains the Docker file.
 - [`tools`](tools) - Contains an additional prompt example.
+
+
+## Update the terrarium tools
+
+The tools and libraries of the terrarium toolset has to be updated from time to time.
+The following steps have to be performed:
+- Check for new versions of tool variables *_VERSION in i[Dockerfile.terrarium](./terraform/docker/Dockerfile.terrarium)
+- Check for new versions of python libraries in file [python_requirements](./terraform/docker/python_requirements) (might depend on Python Version)
+- Check for new versions of the ruby Gems in [Gemfile](./terraform/docker/Gemfile)
+- Rebuild the container image
+  `$ DOCKER_BUILDKIT=1 docker build -f ./Dockerfile.terrarium .` 
+- Mount the folder with the new toolset and rebuild Gemfile.lock from scratch using `bundle install --jobs=12`
+- verify updates with ods-quickstarters/inf-terraform-[aws|azure]
+  ``
+- commit & push changes & create pull request
