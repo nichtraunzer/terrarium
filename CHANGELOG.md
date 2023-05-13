@@ -8,7 +8,7 @@
          - hashicorp tools
          - nodejs
          - default python version is 3.9
-         - python requirements
+         - python requirements 
          - added tflint 
 
 20220315 Initial release.
