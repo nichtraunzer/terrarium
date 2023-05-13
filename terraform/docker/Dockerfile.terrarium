@@ -11,11 +11,12 @@ ENV TERRAFORM_VERSION=1.4.6 \
     TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
     TERRAFORM_DOCS_VERSION=v0.16.0 \
     RUBY_VERSION=3.2.2 \
-    PACKER_VERSION=1.8.6 \
+    PACKER_VERSION=1.8.7 \
     CONSUL_VERSION=1.15.2 \
     TFENV_VERSION=3.0.0 \
+    TFLINT_VERSION=0.46.1 \
     NODEJS_VERSION=18.16.0 \
-    BUNDLER_VERSION=2.4.12 \
+    BUNDLER_VERSION=2.4.13 \
     GEM_HOME=/opt/bundle \
     RBENV_ROOT=/opt/rbenv \
     RBENV_SHELL=bash \
@@ -27,7 +28,7 @@ ENV TERRAFORM_VERSION=1.4.6 \
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python38 python38-devel python38-pip python38-setuptools \
     python39 python39-devel python39-pip python39-setuptools \
-    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils sqlite-devel xz"
+    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz"
 ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV HOME=/home/terrarium
 
@@ -35,6 +36,13 @@ COPY python_requirements /tmp/requirements.txt
 
 RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVARIANT}, \
     building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
+
+# Install jq
+RUN yum -y install epel-release \
+    && crb enable \
+    && yum install -y jq parallel \
+    && jq -Version \
+    && yum clean all
 
 RUN set -x \
     && dnf -y install $INSTALL_PKGS
@@ -113,6 +121,13 @@ RUN TFENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64")
     && terraform -version \
     && tfenv list
 
+# Install tflint
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && wget -q -O /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TARGETARCH_SYNONYM_SHORT2}.zip" \
+    && unzip /tmp/tflint.zip -d /usr/local/bin \
+    && rm -rf /tmp/tflint.zip \
+    && tflint --version
+
 # Install Packer
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
@@ -142,12 +157,6 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && tar zxpf /tmp/terraform-docs.tar.gz -C /usr/local/bin/ terraform-docs \
     && chmod +x /usr/local/bin/terraform-docs \
     && /usr/local/bin/terraform-docs --help
-
-# Install jq
-RUN yum -y install epel-release \
-    && yum install -y jq parallel \
-    && jq -Version \
-    && yum clean all
 
 # Install mozilla/sops and AGE
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -205,7 +214,7 @@ RUN cd /opt \
     && bundle config set --global path $GEM_HOME \
     && RBENV_VERSION=$RUBY_VERSION bundle config set --global path $GEM_HOME \
     && cd $GEM_HOME \
-    && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=8 \
+    && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=22 \
     && rm -Rf $HOME/.bundle/cache
 
 WORKDIR $HOME
