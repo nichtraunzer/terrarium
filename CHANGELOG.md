@@ -7,6 +7,7 @@
          - inspec and cinc-auditor-bin
          - hashicorp tools
          - nodejs
+         - default python version is 3.9
          - python requirements
          - added tflint 
 
