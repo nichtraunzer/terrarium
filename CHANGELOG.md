@@ -4,10 +4,10 @@
          - ruby 3.3.2
          - bundler
          - kitchen-terraform
-         - inspec/cinc-auditor-bin
+         - inspec and cinc-auditor-bin
          - hashicorp tools
          - nodejs
          - python requirements
-         - add tflint ## TODO
+         - added tflint 
 
 20220315 Initial release.
