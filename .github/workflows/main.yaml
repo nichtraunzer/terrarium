@@ -123,10 +123,10 @@ jobs:
           tags: ${{ needs.prepare.outputs.metadata-tags }}
           outputs: |
             type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: |
-            ${{ steps.cache-flags.outputs.cache-from }}
-          cache-to: |
-            ${{ steps.cache-flags.outputs.cache-to }}
+          #cache-from: |
+          #  ${{ steps.cache-flags.outputs.cache-from }}
+          #cache-to: |
+          #  ${{ steps.cache-flags.outputs.cache-to }}
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
