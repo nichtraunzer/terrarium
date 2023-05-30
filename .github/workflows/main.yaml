@@ -53,9 +53,10 @@ jobs:
             type=sha
     outputs:
       image: ${{ steps.image.outputs.image }}
-      metadata-version: ${{ steps.meta.outputs.version }}
-      metadata-labels: ${{ steps.meta.outputs.labels }}
-      metadata-json: ${{ steps.meta.outputs.json }}
+      metadata-version: ${{ steps.docker_image_metadata.outputs.version }}
+      metadata-labels: ${{ steps.docker_image_metadata.outputs.labels }}
+      metadata-tags: ${{ steps.docker_image_metadata.outputs.tags }}
+      metadata-json: ${{ steps.docker_image_metadata.outputs.json }}
   build-images:
     name: Build images for platforms linux/amd64,linux/arm64
     timeout-minutes: 588
@@ -116,6 +117,7 @@ jobs:
           file: terraform/docker/Dockerfile.terrarium
           platforms: ${{ matrix.platform }}
           labels: ${{ needs.prepare.outputs.metadata-labels }}
+          tags: ${{ needs.prepare.outputs.metadata-tags }}
           outputs: |
             type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
           cache-from: |
