@@ -61,6 +61,9 @@ jobs:
     name: Build images for platforms linux/amd64,linux/arm64
     timeout-minutes: 588
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     needs:
       - prepare
     strategy:
