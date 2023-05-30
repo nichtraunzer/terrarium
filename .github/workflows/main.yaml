@@ -17,42 +17,29 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_BASE: ${{ github.repository }}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-images:
-    name: Build images for platforms linux/amd64,linux/arm64
-    timeout-minutes: 588
+  prepare:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        image: ["terrarium"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Get lowercase GitHub username
+        id: repository_owner
+        uses: ASzc/change-string-case-action@v5
         with:
-          fetch-depth: 0
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-        with:
-          driver-opts: |
-            image=moby/buildkit:master
-            network=host
-      - name: Login to ghcr.io
-        if: success() && github.event_name != 'pull_request'
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          string: ${{ github.repository_owner }}
+      - name: Set image
+        id: image
+        run: |
+          echo 'image=ghcr.io/${{ steps.repository_owner.outputs.lowercase }}/terrarium' >> "${GITHUB_OUTPUT}"
       - name: Docker metadata
         id: docker_image_metadata
         uses: docker/metadata-action@v4
         with:
-          # list of Docker images to use as base name for tags
           images: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+            ${{ steps.image.outputs.image }}
           # Docker tags based on the following events/attributes
           flavor: |
             latest=auto
@@ -64,13 +51,115 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      metadata-version: ${{ steps.meta.outputs.version }}
+      metadata-labels: ${{ steps.meta.outputs.labels }}
+      metadata-json: ${{ steps.meta.outputs.json }}
+  build-images:
+    name: Build images for platforms linux/amd64,linux/arm64
+    timeout-minutes: 588
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to ghcr.io
+        if: success() && github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set cache flags
+        id: cache-flags
+        run: |
+          # Set the cache-to output
+          echo 'cache-to=type=gha,scope=${{ github.ref_name }}-${{ matrix.platform }}' >> "${GITHUB_OUTPUT}"
+
+          # Set the cache-from output
+          if [[ '${{ github.event_name }}' == 'push' ]]; then
+            echo 'cache-from=type=gha,scope=${{ github.ref_name }}-${{ matrix.platform }}' >> "${GITHUB_OUTPUT}"
+          else
+            # Use cache from target branch too when building a pull request
+
+            # In this case, it has to be a multiline string
+            # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
+            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+
+            echo "cache-from<<${EOF}" >> "${GITHUB_OUTPUT}"
+
+            printf '%s\n' \
+              "type=gha,scope=${{ github.ref_name }}-${{ matrix.platform }}" \
+              "type=gha,scope=${{ github.base_ref }}-${{ matrix.platform }}" \
+              >> "${GITHUB_OUTPUT}"
+
+            echo "${EOF}" >> "${GITHUB_OUTPUT}"
+          fi
       - name: Buildx and push
         id: buildx_and_push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           context: ./terraform/docker
-          file: terraform/docker/Dockerfile.${{ matrix.image }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.docker_image_metadata.outputs.tags }}
-          labels: ${{ steps.docker_image_metadata.outputs.labels }}
+          file: terraform/docker/Dockerfile.terrarium
+          platforms: ${{ matrix.platform }}
+          labels: ${{ needs.prepare.outputs.metadata-labels }}
+          outputs: |
+            type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: |
+            ${{ steps.cache-flags.outputs.cache-from }}
+          cache-to: |
+            ${{ steps.cache-flags.outputs.cache-to }}
+            - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${digest#sha256:}"
+      - name: Upload digest
+        uses: actions/upload-artifact@v3
+        with:
+          name: digests
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  push:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v3
+        with:
+          name: digests
+          path: /tmp/digests
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to GitHub Container Registry
+        if: github.event_name == 'push' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -r '"-t " + (.tags | join(" -t "))' <<< '${{ needs.prepare.outputs.metadata-json }}') \
+            $(printf '${{ needs.prepare.outputs.image }}@sha256:%s ' *)
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect '${{ needs.prepare.outputs.image }}:${{ needs.prepare.outputs.metadata-version }}'
