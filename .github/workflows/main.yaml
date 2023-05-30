@@ -111,6 +111,7 @@ jobs:
         id: buildx
         uses: docker/build-push-action@v4
         with:
+          push: ${{ github.event_name != 'pull_request' }}
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.terrarium
           platforms: ${{ matrix.platform }}
