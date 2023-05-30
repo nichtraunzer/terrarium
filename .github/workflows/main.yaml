@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - prepare
-      - buildx
+      - build-images
     steps:
       - name: Download digests
         uses: actions/download-artifact@v3
