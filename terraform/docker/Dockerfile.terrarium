@@ -99,8 +99,8 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
     && sam --version
 
 # Install python requirements
-RUN python3 -m pip install -r /tmp/requirements.txt \
-    && python3.8 -m pip install -r /tmp/requirements.txt \
+RUN echo python3 -m pip install -r /tmp/requirements.txt \
+    && echo python3.8 -m pip install -r /tmp/requirements.txt \
     && python3.9 -m pip install -r /tmp/requirements.txt \
     && python3.11 -m pip install -r /tmp/requirements.txt
 

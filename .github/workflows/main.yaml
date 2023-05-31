@@ -39,7 +39,8 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ${{ steps.image.outputs.image }}
+          ghcr.io/${{ github.repository_owner }}/terrarium
+          #  ${{ steps.image.outputs.image }}
           # Docker tags based on the following events/attributes
           flavor: |
             latest=auto
