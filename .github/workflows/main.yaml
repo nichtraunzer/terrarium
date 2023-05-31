@@ -122,8 +122,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ needs.prepare.outputs.metadata-labels }}
           tags: ${{ needs.prepare.outputs.metadata-tags }}
-          outputs: |
-            type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          # outputs: |
+          #   type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=false
           #cache-from: |
           #  ${{ steps.cache-flags.outputs.cache-from }}
           #cache-to: |
