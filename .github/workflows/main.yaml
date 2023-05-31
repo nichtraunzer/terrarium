@@ -68,7 +68,7 @@ jobs:
             type=sha
       - name: Buildx and push
         id: buildx_and_push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.terrarium
