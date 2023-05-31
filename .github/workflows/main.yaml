@@ -54,7 +54,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+            ghcr.io/${{ github.repository_owner }}/terrarium
           # Docker tags based on the following events/attributes
           flavor: |
             latest=auto
