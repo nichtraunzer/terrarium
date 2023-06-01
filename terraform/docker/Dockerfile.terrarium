@@ -101,7 +101,7 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
 # Install python requirements
 RUN echo python3 -m pip install -r /tmp/requirements.txt \
     && echo python3.8 -m pip install -r /tmp/requirements.txt \
-    && python3.9 -m pip install -r /tmp/requirements.txt \
+    && echo python3.9 -m pip install -r /tmp/requirements.txt \
     && python3.11 -m pip install -r /tmp/requirements.txt
 
 # Install aws cdk
@@ -235,7 +235,7 @@ RUN source ~/.bash_profile \
     && RBENV_VERSION=${RUBY_VERSION} ruby --version \
     && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} ruby --version \
     && cd ${GEM_HOME} \
-    && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=22 \
+    && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=6 \
     && rm -Rf ${HOME}/.bundle/cache
 
 WORKDIR $HOME
