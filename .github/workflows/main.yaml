@@ -90,8 +90,8 @@ jobs:
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.terrarium
           platforms: ${{ matrix.platform }}
-          labels: ${{ needs.prepare.outputs.metadata-labels }}
-          tags: ${{ needs.prepare.outputs.metadata-tags }}
+          labels: ${{ steps.docker_image_metadata.outputs.metadata-labels }}
+          tags: ${{ steps.docker_image_metadata.outputs.metadata-tags }}
 
   build-multi-architecture-manifest:
     needs:
