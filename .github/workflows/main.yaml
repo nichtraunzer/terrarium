@@ -36,13 +36,13 @@ jobs:
           - linux/amd64
           - linux/arm64
         runner:
-          - buildjet-4vcpu-ubuntu-2204
+          - ubuntu-latest
           - buildjet-4vcpu-ubuntu-2204-arm
         exclude:
           - platform: linux/amd64
             runner: buildjet-4vcpu-ubuntu-2204-arm
           - platform: linux/arm64
-            runner: buildjet-4vcpu-ubuntu-2204
+            runner: ubuntu-latest
     steps:
       - name: Get lowercase GitHub username
         id: repository_owner
@@ -90,8 +90,8 @@ jobs:
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.terrarium
           platforms: ${{ matrix.platform }}
-          labels: ${{ steps.docker_image_metadata.outputs.metadata-labels }}
-          tags: ${{ steps.docker_image_metadata.outputs.metadata-tags }}
+          labels: ${{ steps.docker_image_metadata.outputs.labels }}
+          tags: ${{ steps.docker_image_metadata.outputs.tags }}
 
   build-multi-architecture-manifest:
     needs:
