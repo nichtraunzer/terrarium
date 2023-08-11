@@ -112,6 +112,8 @@ jobs:
         id: metadata
         with:
           images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
       - uses: int128/docker-manifest-create-action@v1
         with:
           tags: ${{ steps.metadata.outputs.tags }}
