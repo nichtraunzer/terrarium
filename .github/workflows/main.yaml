@@ -55,7 +55,7 @@ jobs:
           echo 'image=ghcr.io/${{ steps.repository_owner.outputs.lowercase }}/terrarium' >> "${GITHUB_OUTPUT}"
       - name: Docker metadata
         id: docker_image_metadata
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/terrarium
@@ -108,7 +108,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v4
+      - uses: docker/metadata-action@v5
         id: metadata
         with:
           images: ghcr.io/${{ github.repository }}
