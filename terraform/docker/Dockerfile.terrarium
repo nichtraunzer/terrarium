@@ -34,7 +34,7 @@ ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch read
     python38 python38-devel python38-pip python38-setuptools \
     python39 python39-devel python39-pip python39-setuptools \
     python3.11 python3.11-devel python3.11-pip python3.11-setuptools \
-    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz"
+    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps"
 ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV HOME=/home/terrarium
 
