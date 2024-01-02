@@ -37,7 +37,7 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always() 
         with:
           sarif_file: 'public/trivy-results.sarif'
@@ -65,6 +65,6 @@ jobs:
       #    github_token: ${{ secrets.GITHUB_TOKEN }}
       #    publish_dir: ./public
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'public/trivy-results.sarif'
