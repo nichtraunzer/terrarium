@@ -29,7 +29,7 @@ ENV TERRAFORM_VERSION=1.4.6 \
     HELM_VERSION=3.11.3 \
     STARSHIP_VERSION=1.14.2 \
     ZOXIDE_VERSION=0.9.0 \
-    GO_VERSION=1.22.2
+    GO_VERSION=1.22.3
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python38 python38-devel python38-pip python38-setuptools \
@@ -192,7 +192,7 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
     && /tmp/zoxide.sh \
     && rm -f /tmp/zoxide.sh
 
-    # Install GO
+# Install GO
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/go.tar.gz https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar -C /usr/local -xzf /tmp/go.tar.gz
