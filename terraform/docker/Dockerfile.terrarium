@@ -15,9 +15,9 @@ ENV TERRAFORM_VERSION=1.9.3 \
     RUBY_VERSION_DEPRECATED=3.2.2 \
     PACKER_VERSION=1.11.2 \
     CONSUL_VERSION=1.19.1 \
-    TFENV_VERSION=3.0.0 \
+    TENV_VERSION=3.0.0 \
     TFLINT_VERSION=0.50.3 \
-    NODEJS_VERSION=18.20.4 \
+    NODEJS_VERSION=20.16.0 \
     BUNDLER_VERSION=2.5.17 \
     BUNDLER_VERSION_DEPRECATED=2.4.13 \
     GEM_HOME=/opt/bundle \
@@ -25,18 +25,18 @@ ENV TERRAFORM_VERSION=1.9.3 \
     RBENV_SHELL=bash \
     SOPS_VERSION=3.9.0 \
     AGE_VERSION=1.2.0 \
-    KUBECTL_VERSION=1.3.0 \
+    KUBECTL_VERSION=1.30 \
     HELM_VERSION=3.14.0 \
     STARSHIP_VERSION=1.20.1 \
     ZOXIDE_VERSION=0.9.4 \
     GO_VERSION=1.22.5
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
-    python38 python38-devel python38-pip python38-setuptools \
     python39 python39-devel python39-pip python39-setuptools \
     python3.11 python3.11-devel python3.11-pip python3.11-setuptools \
+    python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo"
-ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+ENV PATH=/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV HOME=/home/terrarium
 
 COPY python_requirements /tmp/requirements.txt
@@ -60,18 +60,16 @@ RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
     && pip3 -V \
-    && pip3.8 install --upgrade pip \
-    && pip3.8 -V \
     && pip3.9 install --upgrade pip \
     && pip3.9 -V \
     && pip3.11 install --upgrade pip \
     && pip3.11 -V \
     && pip3 install virtualenv pycodestyle \
-    && pip3.8 install virtualenv pycodestyle \
     && pip3.9 install virtualenv pycodestyle \
     && pip3.11 install virtualenv pycodestyle \
-    && alternatives --set python /usr/bin/python3.11 \
-    && alternatives --set python3 /usr/bin/python3.11
+    && pip3.12 install virtualenv pycodestyle \
+    && alternatives --set python /usr/bin/python3.12 \
+    && alternatives --set python3 /usr/bin/python3.12
 
 # Configure PIP SSL validation
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
@@ -123,16 +121,15 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && rm -rf /tmp/terraform.zip \
     && terraform -help
 
-# Install tfenv
-RUN TFENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && umask 0002 && cd /opt && git clone --branch v${TFENV_VERSION} https://github.com/tfutils/tfenv.git \
-    && TFENV_CURL_OUTPUT=0 /opt/tfenv/bin/tfenv install ${TERRAFORM_VERSION} \
-    && TFENV_CURL_OUTPUT=0 /opt/tfenv/bin/tfenv install ${TERRAFORM_VERSION_DEPRECATED} \
-    && /opt/tfenv/bin/tfenv use ${TERRAFORM_VERSION} \
-    && chown -R 1001:0 /opt/tfenv && chmod +x /opt/tfenv/bin/* \
+# Install TENV
+RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && yum install -y https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm \
+    && TFENV_CURL_OUTPUT=0 tenv tf install ${TERRAFORM_VERSION} \
+    && TFENV_CURL_OUTPUT=0 tenv tf install ${TERRAFORM_VERSION_DEPRECATED} \
+    && tenv tf use ${TERRAFORM_VERSION} \
     && echo "export TFENV_ARCH=${TFENV_ARCH}" >> ~/.bash_profile \
     && terraform -version \
-    && tfenv list
+    && tenv tf list
 
 # Install tflint
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -178,7 +175,7 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar zxpf /tmp/age.tar.gz --strip-components=1 -C /usr/local/bin age/age age/age-keygen \
     && rm -f /tmp/age.tar.gz \
-    && /usr/bin/sops --version \   
+    && /usr/bin/sops --version \
     && /usr/local/bin/age --version
 
 # Install starship and zoxide
