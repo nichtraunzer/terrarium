@@ -45,17 +45,15 @@ RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVAR
     building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
 
 # Install jq
-RUN yum -y install epel-release \
+RUN dnf install -y epel-release \
     && crb enable \
-    && yum install -y jq parallel \
+    && dnf install -y jq parallel \
     && jq -Version \
-    && yum clean all
+    && dnf clean all
 
 RUN set -x \
-    && dnf -y install $INSTALL_PKGS
-
-RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
-    && python3 get-pip.py
+    && dnf install -y $INSTALL_PKGS \
+    && dnf clean all
 
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
@@ -93,7 +91,8 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
 
 # Install python requirements
 RUN echo python3 -m pip install -r /tmp/requirements.txt \
-    && python3.12 -m pip install -r /tmp/requirements.txt
+    && python3.12 -m pip install -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
@@ -105,13 +104,6 @@ RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || e
     && chown -R 1001:0 /opt/node && chmod +x /opt/node/bin/* \
     && node --version \
     && cdk --version
-
-# Install Terraform
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/terraform.zip -d /usr/local/bin terraform \
-    && rm -rf /tmp/terraform.zip \
-    && terraform -help
 
 # Install tenv
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -237,4 +229,4 @@ RUN source ~/.bash_profile \
     && rm -Rf ${HOME}/.bundle/cache
 
 WORKDIR $HOME
-CMD /bin/bash -i "${HOME}/.bash_profile"
+CMD /bin/bash -i -l
