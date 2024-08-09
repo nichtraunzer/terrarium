@@ -32,7 +32,6 @@ ENV TERRAFORM_VERSION=1.9.3 \
     GO_VERSION=1.22.5
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
-    python39 python39-devel python39-pip python39-setuptools \
     python3.11 python3.11-devel python3.11-pip python3.11-setuptools \
     python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo"
@@ -60,12 +59,9 @@ RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
     && pip3 -V \
-    && pip3.9 install --upgrade pip \
-    && pip3.9 -V \
     && pip3.11 install --upgrade pip \
     && pip3.11 -V \
     && pip3 install virtualenv pycodestyle \
-    && pip3.9 install virtualenv pycodestyle \
     && pip3.11 install virtualenv pycodestyle \
     && pip3.12 install virtualenv pycodestyle \
     && alternatives --set python /usr/bin/python3.12 \
@@ -99,9 +95,8 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
 
 # Install python requirements
 RUN echo python3 -m pip install -r /tmp/requirements.txt \
-    && echo python3.8 -m pip install -r /tmp/requirements.txt \
-    && echo python3.9 -m pip install -r /tmp/requirements.txt \
-    && python3.11 -m pip install -r /tmp/requirements.txt
+    && python3.11 -m pip install -r /tmp/requirements.txt \
+    && python3.12 -m pip install -r /tmp/requirements.txt
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
@@ -121,7 +116,7 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && rm -rf /tmp/terraform.zip \
     && terraform -help
 
-# Install TENV
+# Install tenv
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && yum install -y https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm \
     && TFENV_CURL_OUTPUT=0 tenv tf install ${TERRAFORM_VERSION} \
