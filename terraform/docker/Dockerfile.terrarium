@@ -116,10 +116,9 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 # Install tenv
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && yum install -y https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm \
-    && TFENV_CURL_OUTPUT=0 tenv tf install ${TERRAFORM_VERSION} \
-    && TFENV_CURL_OUTPUT=0 tenv tf install ${TERRAFORM_VERSION_DEPRECATED} \
+    && tenv tf install ${TERRAFORM_VERSION} \
+    && tenv tf install ${TERRAFORM_VERSION_DEPRECATED} \
     && tenv tf use ${TERRAFORM_VERSION} \
-    && echo "export TFENV_ARCH=${TFENV_ARCH}" >> ~/.bash_profile \
     && terraform -version \
     && tenv tf list \
     && echo 'export PATH=$(/usr/bin/tenv update-path)' > /etc/profile.d/tenv.sh \
@@ -136,14 +135,14 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 # Install Packer
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip -o /tmp/packer.zip -d /usr/local/bin \
+    && unzip /tmp/packer.zip -d /usr/local/bin \
     && rm -rf /tmp/packer.zip \
     && packer --version
 
 ## Install consul-cli
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip -o consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip -d /usr/local/bin \
+    && unzip consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip -d /usr/local/bin \
     && rm -f consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip \
     && chmod +x /usr/local/bin/consul \
     && /usr/local/bin/consul -version
