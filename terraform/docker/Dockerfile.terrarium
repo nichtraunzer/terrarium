@@ -109,7 +109,7 @@ RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || e
 # Install Terraform
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/terraform.zip -d /usr/local/bin \
+    && unzip /tmp/terraform.zip -d /usr/local/bin terraform \
     && rm -rf /tmp/terraform.zip \
     && terraform -help
 
@@ -135,22 +135,22 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 # Install Packer
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/packer.zip -d /usr/local/bin \
+    && unzip /tmp/packer.zip -d /usr/local/bin packer \
     && rm -rf /tmp/packer.zip \
     && packer --version
 
 ## Install consul-cli
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip -d /usr/local/bin \
-    && rm -f consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip \
+    && wget -q -O /tmp/consul.zip -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
+    && unzip /tmp/consul.zip -d /usr/local/bin consul \
+    && rm -f /tmp/consul.zip \
     && chmod +x /usr/local/bin/consul \
     && /usr/local/bin/consul -version
 
 # Install terraform-config-inspect
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/terraform-config-inspect.tar.gz https://github.com/nichtraunzer/terraform-config-inspect/releases/download/v${TERRAFORM_CONFIG_INSPECT_VERSION}/terraform-config-inspect_${TERRAFORM_CONFIG_INSPECT_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
-    && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ \
+    && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ terraform-config-inspect \
     && rm -f /tmp/terraform-config-inspect.tar.gz \
     && chmod 755 /usr/local/bin/terraform-config-inspect \
     && /usr/local/bin/terraform-config-inspect
@@ -159,18 +159,20 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar zxpf /tmp/terraform-docs.tar.gz -C /usr/local/bin/ terraform-docs \
+    && rm -f /tmp/terraform-docs.tar.gz \
     && chmod +x /usr/local/bin/terraform-docs \
     && /usr/local/bin/terraform-docs --help
 
 # Install mozilla/sops and AGE
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && yum install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
+    && dnf install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
     && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar zxpf /tmp/age.tar.gz --strip-components=1 -C /usr/local/bin age/age age/age-keygen \
     && rm -f /tmp/age.tar.gz \
     && /usr/bin/sops --version \
-    && /usr/local/bin/age --version
+    && /usr/local/bin/age --version \
+    && dnf clean all
 
 # Install starship and zoxide
 RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
@@ -186,7 +188,8 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
 # Install GO
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/go.tar.gz https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm -f /tmp/go.tar.gz
 
 ENV PATH=$PATH:/usr/local/go/bin
 
