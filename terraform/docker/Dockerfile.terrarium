@@ -7,7 +7,7 @@ ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILD
 #ENV TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64")
 #ENV TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64")
 
-ENV TERRAFORM_VERSION=1.9.3 \
+ENV TERRAFORM_VERSION=1.9.4 \
     TERRAFORM_VERSION_DEPRECATED=1.4.6 \
     TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
     TERRAFORM_DOCS_VERSION=v0.18.0 \
@@ -16,6 +16,8 @@ ENV TERRAFORM_VERSION=1.9.3 \
     PACKER_VERSION=1.11.2 \
     CONSUL_VERSION=1.19.1 \
     TENV_VERSION=3.0.0 \
+    TENV_AUTO_INSTALL=true \
+    TENV_ROOT=/opt/tenv \
     TFLINT_VERSION=0.50.3 \
     NODEJS_VERSION=20.16.0 \
     BUNDLER_VERSION=2.5.17 \
@@ -32,7 +34,6 @@ ENV TERRAFORM_VERSION=1.9.3 \
     GO_VERSION=1.22.5
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
-    python3.11 python3.11-devel python3.11-pip python3.11-setuptools \
     python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo"
 ENV PATH=/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
@@ -59,10 +60,7 @@ RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
     && pip3 -V \
-    && pip3.11 install --upgrade pip \
-    && pip3.11 -V \
     && pip3 install virtualenv pycodestyle \
-    && pip3.11 install virtualenv pycodestyle \
     && pip3.12 install virtualenv pycodestyle \
     && alternatives --set python /usr/bin/python3.12 \
     && alternatives --set python3 /usr/bin/python3.12
@@ -95,7 +93,6 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
 
 # Install python requirements
 RUN echo python3 -m pip install -r /tmp/requirements.txt \
-    && python3.11 -m pip install -r /tmp/requirements.txt \
     && python3.12 -m pip install -r /tmp/requirements.txt
 
 # Install aws cdk
@@ -124,7 +121,10 @@ RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") 
     && tenv tf use ${TERRAFORM_VERSION} \
     && echo "export TFENV_ARCH=${TFENV_ARCH}" >> ~/.bash_profile \
     && terraform -version \
-    && tenv tf list
+    && tenv tf list \
+    && echo 'export PATH=$(/usr/bin/tenv update-path)' > /etc/profile.d/tenv.sh \
+    && chown -R 1001:0 "${TENV_ROOT}" \
+    && chmod -R 2775 "${TENV_ROOT}"
 
 # Install tflint
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
