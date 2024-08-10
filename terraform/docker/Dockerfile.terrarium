@@ -31,7 +31,8 @@ ENV TERRAFORM_VERSION=1.9.4 \
     HELM_VERSION=3.14.0 \
     STARSHIP_VERSION=1.20.1 \
     ZOXIDE_VERSION=0.9.4 \
-    GO_VERSION=1.21.13
+    GO_VERSION=1.21.13 \
+    TASK_VERSION=3.36.0
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
@@ -182,6 +183,10 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && wget -q -O /tmp/go.tar.gz https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
     && rm -f /tmp/go.tar.gz
+
+# Install go-task
+RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d ${TASK_VERSION} \
+    && task --version
 
 ENV PATH=$PATH:/usr/local/go/bin
 
