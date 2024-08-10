@@ -229,4 +229,4 @@ RUN source ~/.bash_profile \
     && rm -Rf ${HOME}/.bundle/cache
 
 WORKDIR $HOME
-CMD ["/bin/bash", "-i -l"]
+CMD ["/bin/bash", "-i", "-l"]
