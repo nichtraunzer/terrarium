@@ -1,4 +1,4 @@
-FROM rockylinux:8
+FROM rockylinux/rockylinux:8
 
 LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
 
@@ -7,36 +7,38 @@ ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILD
 #ENV TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64")
 #ENV TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64")
 
-ENV TERRAFORM_VERSION=1.4.6 \
-    TERRAFORM_VERSION_DEPRECATED=1.2.9 \
+ENV TERRAFORM_VERSION=1.9.4 \
+    TERRAFORM_VERSION_DEPRECATED=1.4.6 \
     TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
-    TERRAFORM_DOCS_VERSION=v0.18.0 \
-    RUBY_VERSION=3.2.2 \
-    RUBY_VERSION_DEPRECATED=2.7.5 \
-    PACKER_VERSION=1.8.7 \
-    CONSUL_VERSION=1.15.2 \
-    TFENV_VERSION=3.0.0 \
-    TFLINT_VERSION=0.46.1 \
-    NODEJS_VERSION=18.16.0 \
-    BUNDLER_VERSION=2.4.13 \
-    BUNDLER_VERSION_DEPRECATED=2.2.23 \
+    TERRAFORM_DOCS_VERSION=v0.19.0 \
+    RUBY_VERSION=3.3.4 \
+    RUBY_VERSION_DEPRECATED=3.2.2 \
+    PACKER_VERSION=1.11.2 \
+    CONSUL_VERSION=1.19.1 \
+    TENV_VERSION=3.0.0 \
+    TENV_AUTO_INSTALL=true \
+    TENV_ROOT=/opt/tenv \
+    TFLINT_VERSION=0.52.0 \
+    NODEJS_VERSION=20.16.0 \
+    BUNDLER_VERSION=2.5.17 \
+    BUNDLER_VERSION_DEPRECATED=2.4.13 \
     GEM_HOME=/opt/bundle \
     RBENV_ROOT=/opt/rbenv \
     RBENV_SHELL=bash \
-    SOPS_VERSION=3.7.3 \
-    AGE_VERSION=1.1.1 \
-    KUBECTL_VERSION=1.25.10 \
-    HELM_VERSION=3.11.3 \
-    STARSHIP_VERSION=1.14.2 \
-    ZOXIDE_VERSION=0.9.0 \
-    GO_VERSION=1.22.3
+    SOPS_VERSION=3.9.0 \
+    AGE_VERSION=1.2.0 \
+    KUBECTL_VERSION=1.30 \
+    HELM_VERSION=3.14.0 \
+    STARSHIP_VERSION=1.20.1 \
+    ZOXIDE_VERSION=0.9.4 \
+    GO_VERSION=1.21.13 \
+    TASK_VERSION=3.38.0 \
+    YQ_VERSION=4.44.3
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
-    python38 python38-devel python38-pip python38-setuptools \
-    python39 python39-devel python39-pip python39-setuptools \
-    python3.11 python3.11-devel python3.11-pip python3.11-setuptools \
-    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo"
-ENV PATH=/opt/tfenv/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+    python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
+    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo xorriso"
+ENV PATH=/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV HOME=/home/terrarium
 
 COPY python_requirements /tmp/requirements.txt
@@ -44,34 +46,31 @@ COPY python_requirements /tmp/requirements.txt
 RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVARIANT}, \
     building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
 
+# Updates OS packages
+RUN dnf install -y redhat-lsb-core \
+    && lsb_release -d \
+    && dnf update -y \
+    && lsb_release -d \
+    && dnf clean all
+
 # Install jq
-RUN yum -y install epel-release \
+RUN dnf install -y epel-release \
     && crb enable \
-    && yum install -y jq parallel \
+    && dnf install -y jq parallel \
     && jq -Version \
-    && yum clean all
+    && dnf clean all
 
 RUN set -x \
-    && dnf -y install $INSTALL_PKGS
-
-RUN curl "https://bootstrap.pypa.io/pip/3.6/get-pip.py" -o "get-pip.py" \
-    && python3 get-pip.py
+    && dnf install -y $INSTALL_PKGS \
+    && dnf clean all
 
 # Upgrade PIP
 RUN pip3 install --upgrade pip \
     && pip3 -V \
-    && pip3.8 install --upgrade pip \
-    && pip3.8 -V \
-    && pip3.9 install --upgrade pip \
-    && pip3.9 -V \
-    && pip3.11 install --upgrade pip \
-    && pip3.11 -V \
     && pip3 install virtualenv pycodestyle \
-    && pip3.8 install virtualenv pycodestyle \
-    && pip3.9 install virtualenv pycodestyle \
-    && pip3.11 install virtualenv pycodestyle \
-    && alternatives --set python /usr/bin/python3.11 \
-    && alternatives --set python3 /usr/bin/python3.11
+    && pip3.12 install virtualenv pycodestyle \
+    && alternatives --set python /usr/bin/python3.12 \
+    && alternatives --set python3 /usr/bin/python3.12
 
 # Configure PIP SSL validation
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
@@ -101,9 +100,8 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
 
 # Install python requirements
 RUN echo python3 -m pip install -r /tmp/requirements.txt \
-    && echo python3.8 -m pip install -r /tmp/requirements.txt \
-    && echo python3.9 -m pip install -r /tmp/requirements.txt \
-    && python3.11 -m pip install -r /tmp/requirements.txt
+    && python3.12 -m pip install -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
@@ -116,23 +114,17 @@ RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || e
     && node --version \
     && cdk --version
 
-# Install Terraform
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/terraform.zip -d /usr/local/bin \
-    && rm -rf /tmp/terraform.zip \
-    && terraform -help
-
-# Install tfenv
-RUN TFENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && umask 0002 && cd /opt && git clone --branch v${TFENV_VERSION} https://github.com/tfutils/tfenv.git \
-    && TFENV_CURL_OUTPUT=0 /opt/tfenv/bin/tfenv install ${TERRAFORM_VERSION} \
-    && TFENV_CURL_OUTPUT=0 /opt/tfenv/bin/tfenv install ${TERRAFORM_VERSION_DEPRECATED} \
-    && /opt/tfenv/bin/tfenv use ${TERRAFORM_VERSION} \
-    && chown -R 1001:0 /opt/tfenv && chmod +x /opt/tfenv/bin/* \
-    && echo "export TFENV_ARCH=${TFENV_ARCH}" >> ~/.bash_profile \
+# Install tenv
+RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && yum install -y https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm \
+    && tenv tf install ${TERRAFORM_VERSION} \
+    && tenv tf install ${TERRAFORM_VERSION_DEPRECATED} \
+    && tenv tf use ${TERRAFORM_VERSION} \
     && terraform -version \
-    && tfenv list
+    && tenv tf list \
+    && echo 'export PATH=$(/usr/bin/tenv update-path)' > /etc/profile.d/tenv.sh \
+    && chown -R 1001:0 "${TENV_ROOT}" \
+    && chmod -R 2775 "${TENV_ROOT}"
 
 # Install tflint
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -144,22 +136,22 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 # Install Packer
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/packer.zip -d /usr/local/bin \
+    && unzip /tmp/packer.zip -d /usr/local/bin packer \
     && rm -rf /tmp/packer.zip \
     && packer --version
 
 ## Install consul-cli
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip -d /usr/local/bin \
-    && rm -f consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip \
+    && wget -q -O /tmp/consul.zip -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
+    && unzip /tmp/consul.zip -d /usr/local/bin consul \
+    && rm -f /tmp/consul.zip \
     && chmod +x /usr/local/bin/consul \
     && /usr/local/bin/consul -version
 
 # Install terraform-config-inspect
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/terraform-config-inspect.tar.gz https://github.com/nichtraunzer/terraform-config-inspect/releases/download/v${TERRAFORM_CONFIG_INSPECT_VERSION}/terraform-config-inspect_${TERRAFORM_CONFIG_INSPECT_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
-    && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ \
+    && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ terraform-config-inspect \
     && rm -f /tmp/terraform-config-inspect.tar.gz \
     && chmod 755 /usr/local/bin/terraform-config-inspect \
     && /usr/local/bin/terraform-config-inspect
@@ -168,18 +160,20 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar zxpf /tmp/terraform-docs.tar.gz -C /usr/local/bin/ terraform-docs \
+    && rm -f /tmp/terraform-docs.tar.gz \
     && chmod +x /usr/local/bin/terraform-docs \
     && /usr/local/bin/terraform-docs --help
 
 # Install mozilla/sops and AGE
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && yum install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
+    && dnf install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
     && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
     && tar zxpf /tmp/age.tar.gz --strip-components=1 -C /usr/local/bin age/age age/age-keygen \
     && rm -f /tmp/age.tar.gz \
-    && /usr/local/bin/sops --version \
-    && /usr/local/bin/age --version
+    && /usr/bin/sops --version \
+    && /usr/local/bin/age --version \
+    && dnf clean all
 
 # Install starship and zoxide
 RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
@@ -195,7 +189,18 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
 # Install GO
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && wget -q -O /tmp/go.tar.gz https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm -f /tmp/go.tar.gz
+
+# Install go-task
+RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d v${TASK_VERSION} \
+    && task --version
+
+# Install yq
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && wget -q -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2} \
+    && chmod +x /usr/local/bin/yq \
+    && /usr/local/bin/yq --version
 
 ENV PATH=$PATH:/usr/local/go/bin
 
@@ -243,4 +248,4 @@ RUN source ~/.bash_profile \
     && rm -Rf ${HOME}/.bundle/cache
 
 WORKDIR $HOME
-CMD /bin/bash -i "${HOME}/.bash_profile"
+CMD ["/bin/bash", "-i", "-l"]
