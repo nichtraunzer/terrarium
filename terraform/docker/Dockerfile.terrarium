@@ -46,6 +46,13 @@ COPY python_requirements /tmp/requirements.txt
 RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVARIANT}, \
     building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
 
+# Updates OS packages
+RUN dnf install -y redhat-lsb-core \
+    && lsb_release -d \
+    && dnf update -y \
+    && lsb_release -d \
+    && dnf clean all
+
 # Install jq
 RUN dnf install -y epel-release \
     && crb enable \
