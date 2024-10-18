@@ -10,7 +10,7 @@ ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILD
 ENV TERRAFORM_VERSION=1.9.4 \
     TERRAFORM_VERSION_DEPRECATED=1.4.6 \
     TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
-    TERRAFORM_DOCS_VERSION=v0.18.0 \
+    TERRAFORM_DOCS_VERSION=v0.19.0 \
     RUBY_VERSION=3.3.4 \
     RUBY_VERSION_DEPRECATED=3.2.2 \
     PACKER_VERSION=1.11.2 \
@@ -32,7 +32,8 @@ ENV TERRAFORM_VERSION=1.9.4 \
     STARSHIP_VERSION=1.20.1 \
     ZOXIDE_VERSION=0.9.4 \
     GO_VERSION=1.21.13 \
-    TASK_VERSION=3.38.0
+    TASK_VERSION=3.38.0 \
+    YQ_VERSION=4.44.3
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
@@ -187,6 +188,12 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
 # Install go-task
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d v${TASK_VERSION} \
     && task --version
+
+# Install yq
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && wget -q -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2 \
+    && chmod +x /usr/local/bin/yq \
+    && /usr/local/bin/yq --version
 
 ENV PATH=$PATH:/usr/local/go/bin
 
