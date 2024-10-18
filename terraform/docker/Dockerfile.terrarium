@@ -191,7 +191,7 @@ RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d v${TASK_VER
 
 # Install yq
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2 \
+    && wget -q -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2} \
     && chmod +x /usr/local/bin/yq \
     && /usr/local/bin/yq --version
 
