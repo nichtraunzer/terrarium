@@ -10,6 +10,7 @@ source 'https://rubygems.org' do
   gem 'csv'
   gem 'mutex_m'
   gem 'syslog'
+  gem 'inspec-bin'
 end
 
 source 'https://rubygems.cinc.sh' do

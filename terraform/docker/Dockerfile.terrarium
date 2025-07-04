@@ -39,6 +39,8 @@ ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch read
   python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
   libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo xorriso"
 ENV PATH=/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+# add gem executables and user-local bin (zoxide) to every shell
+ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
 ENV HOME=/home/terrarium
 
 COPY python_requirements /tmp/requirements.txt
@@ -245,12 +247,19 @@ RUN source ~/.bash_profile \
   && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} ruby --version \
   && cd ${GEM_HOME} \
   && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=6 \
+  && bundle binstubs --all \
+  && bundle binstubs bundler --force \
+  # && bundle config set --local path ${GEM_HOME} \
+  # && bundle config set --local bin ${GEM_HOME}/bin \
+  # && bundle config set --local cache_all true \
   && rm -Rf ${HOME}/.bundle/cache
 
 # Install test dependencies to allow for testing of output image
 RUN dnf -y install epel-release bats \
   && dnf clean all
 COPY tests /home/terrarium/tests
+
+
 
 WORKDIR $HOME
 CMD ["/bin/bash", "-i", "-l"]
@@ -265,14 +274,13 @@ RUN git clone https://github.com/bats-core/bats-support.git /home/terrarium/test
 # make all tests (and helpers) executable
 RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
 
+# ---- give UID 1001 a real name (optional hardening) ----
+RUN useradd -u 1001 terrarium
+USER 1001:0
+
 # now run them, emitting a proper JUnit XML report
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium
 
-# Run the suite at build time; fail build if anything breaks
-RUN bats --version
-RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
-
-RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium
 # Make sure test files under /home/terrarium/tests are owned by the user and are executable
 ################  Stage 3 — final runtime image  ####
 # IMPORTANT: Do not copy bats or tests.
