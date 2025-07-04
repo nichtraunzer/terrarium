@@ -1,6 +1,8 @@
 #!/usr/bin/env bats
 load 'test_helper/common.bash'
 
+# bats file_tags=aws
+
 # @aws
 @test "AWS CLI" { check_binary aws; }
 

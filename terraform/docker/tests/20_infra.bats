@@ -3,16 +3,15 @@
 
 load 'test_helper/common.bash'
 
-# @infra
+# bats file_tags=infra
+
 @test "Consul CLI" { check_binary consul; }
 
-# @infra
 @test "Packer CLI" { check_binary packer; }
 
-# @infra
 @test "Sops CLI" { check_binary sops; }
 
-# @infra @crypto
+# bats test_tags=crypto
 @test "age‑keygen works" {
   tempfile=$(mktemp /tmp/agekey.XXXXXX)
   rm -f "$tempfile" # ensure it does not exist

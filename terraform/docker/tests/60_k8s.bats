@@ -1,3 +1,8 @@
+#!/usr/bin/env bats
+load 'test_helper/common.bash'
+
+# bats file_tags=
+
 # @k8s
 @test "kubectl present (skipped if absent)" {
   if ! command -v kubectl >/dev/null; then

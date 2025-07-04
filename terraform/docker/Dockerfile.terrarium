@@ -255,8 +255,11 @@ RUN source ~/.bash_profile \
   && rm -Rf ${HOME}/.bundle/cache
 
 # Install test dependencies to allow for testing of output image
-RUN dnf -y install epel-release bats \
-  && dnf clean all
+# --- add latest bats-core (one small layer, ~1 MiB) ---
+RUN git clone --depth 1 --branch v1.11.0 \
+  https://github.com/bats-core/bats-core.git /opt/bats-core \
+  && /opt/bats-core/install.sh /usr/local \
+  && bats --version         # prints 1.11.0
 COPY tests /home/terrarium/tests
 
 
