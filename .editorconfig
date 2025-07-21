@@ -28,3 +28,7 @@ tab_width               = 2
 # Keep manual alignment; VS Code formatter still uses this width
 indent_style            = space
 indent_size             = 4
+[Dockerfile.terrarium]
+# Keep manual alignment; VS Code formatter still uses this width
+indent_style            = space
+indent_size             = 4

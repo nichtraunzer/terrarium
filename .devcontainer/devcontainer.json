@@ -4,17 +4,5 @@
   "containerEnv": {
     "AWS_DEFAULT_REGION": "eu-west-1",
     "AWS_REGION": "eu-west-1"
-  },
-  // Set *default* container specific settings.json values on container create.
-  // Remote Container Settings will be located in user home ~/.vscode-server/data/Machine/settings.json
-  // Configure tool-specific properties.
-  "customizations": {
-    // Configure properties specific to VS Code.
-    "vscode": {
-      // Set *default* container specific settings.json values on container create.
-      "settings": {
-        "docker.languageserver.formatter.ignoreMultilineInstructions": true
-      }
-    }
   }
 }
