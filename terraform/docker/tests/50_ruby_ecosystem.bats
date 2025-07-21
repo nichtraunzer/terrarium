@@ -25,8 +25,12 @@ load 'test_helper/common.bash'
 # bats test_tags=kitchen, slow
 @test "Kitchen CLI" { check_binary kitchen; }
 
-# bats test_tags=inspec, slow
-@test "InSpec CLI" {
-  run inspec version
+# bats test_tags=cinc_auditor, slow
+@test "Cinc Auditor CLI" {
+  # Fail fast if the binary is missing
+  check_binary cinc-auditor
+
+  # Verify that it runs and returns 0
+  run cinc-auditor version
   assert_success
 }
