@@ -1,4 +1,4 @@
-FROM rockylinux/rockylinux:8 as builder
+FROM rockylinux/rockylinux:8 AS builder
 
 LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
 
