@@ -47,7 +47,7 @@ jobs:
         if: always()
         continue-on-error: true
         with:
-          image-ref: "ghcr.io/nichtraunzer/terrarium:latest"
+          image-ref: "ghcr.io/${{ github.repository_owner }}/terrarium:latest"
           format: "template"
           template: "@/contrib/html.tpl"
           output: "public/index.html"

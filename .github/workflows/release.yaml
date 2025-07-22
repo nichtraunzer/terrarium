@@ -1,7 +1,6 @@
 ---
 name: Release images manually
-on:
-  workflow_dispatch
+on: workflow_dispatch
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -48,6 +47,7 @@ jobs:
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.${{ matrix.image }}
           push: true
+          target: test
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.event.release.tag_name }}
           # ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/ods-${{ matrix.image }}:${{ github.event.release.tag_name }}
