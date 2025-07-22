@@ -62,7 +62,7 @@ jobs:
           #  ${{ steps.image.outputs.image }}
           # Docker tags based on the following events/attributes
           flavor: |
-            latest=false,suffix=-${{ matrix.platform }}
+            latest=auto,suffix=-${{ matrix.platform }}
           tags: |
             type=schedule
             type=ref,event=branch
@@ -71,6 +71,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Docker Buildx
