@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-images:
+  build-and-test-images:
     name: Build images for platform ${{ matrix.platform }}
     timeout-minutes: 588
     runs-on: ${{ matrix.runner }}
@@ -95,9 +95,9 @@ jobs:
           tags: ${{ steps.docker_image_metadata.outputs.tags }}
           target: test
 
-  publish-images:
+  publish-image-metadata:
     needs:
-      - build-images
+      - build-and-test-images
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' }}
     permissions:
