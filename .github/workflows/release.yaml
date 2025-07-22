@@ -1,6 +1,12 @@
 ---
 name: Release images manually
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Which tag to push (e.g. v1.2.3)"
+        required: true
+        default: "latest"
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -22,6 +28,31 @@ jobs:
       id-token: write
 
     steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+      - name: Dump job context
+        env:
+          JOB_CONTEXT: ${{ toJson(job) }}
+        run: echo "$JOB_CONTEXT"
+      - name: Dump steps context
+        env:
+          STEPS_CONTEXT: ${{ toJson(steps) }}
+        run: echo "$STEPS_CONTEXT"
+      - name: Dump runner context
+        env:
+          RUNNER_CONTEXT: ${{ toJson(runner) }}
+        run: echo "$RUNNER_CONTEXT"
+      - name: Dump strategy context
+        env:
+          STRATEGY_CONTEXT: ${{ toJson(strategy) }}
+        run: echo "$STRATEGY_CONTEXT"
+      - name: Dump matrix context
+        env:
+          MATRIX_CONTEXT: ${{ toJson(matrix) }}
+        run: echo "$MATRIX_CONTEXT"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -50,4 +81,3 @@ jobs:
           target: test
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.event.release.tag_name }}
-          # ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/ods-${{ matrix.image }}:${{ github.event.release.tag_name }}
