@@ -1,15 +1,15 @@
 ---
-name: terrarium - tools for terraform development environment
+name: terrarium - build, test and publish images
 
 on:
   push:
     branches:
       - master
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
-      - 'master'
+      - "master"
   release:
     types:
       - released
@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   build-images:
+    needs: [test]
     name: Build images for platform ${{ matrix.platform }}
     timeout-minutes: 588
     runs-on: ${{ matrix.runner }}
@@ -91,7 +92,9 @@ jobs:
           file: terraform/docker/Dockerfile.terrarium
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.docker_image_metadata.outputs.labels }}
+          sbom: true
           tags: ${{ steps.docker_image_metadata.outputs.tags }}
+          target: test
 
   build-multi-architecture-manifest:
     needs:
