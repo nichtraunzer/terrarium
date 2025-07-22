@@ -80,4 +80,4 @@ jobs:
           push: true
           target: test
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.inputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.event.inputs.tag }}
