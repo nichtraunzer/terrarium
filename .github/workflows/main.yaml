@@ -82,7 +82,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Buildx
+      - name: Build and Test
         id: buildx_and_push
         uses: docker/build-push-action@v6
         with:
@@ -95,7 +95,7 @@ jobs:
           tags: ${{ steps.docker_image_metadata.outputs.tags }}
           target: test
 
-  build-multi-architecture-manifest:
+  publish-images:
     needs:
       - build-images
     runs-on: ubuntu-latest

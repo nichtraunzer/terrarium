@@ -24,3 +24,7 @@ load 'test_helper/common.bash'
   assert_success
   assert_output --partial "GNU parallel"
 }
+
+@test "Node is installed" {
+  check_binary node
+}
