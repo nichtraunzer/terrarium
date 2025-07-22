@@ -37,10 +37,10 @@ jobs:
           - linux/arm64
         runner:
           - ubuntu-latest
-          - buildjet-4vcpu-ubuntu-2204-arm
+          - ubuntu-22.04-arm
         exclude:
           - platform: linux/amd64
-            runner: buildjet-4vcpu-ubuntu-2204-arm
+            runner: ubuntu-22.04-arm
           - platform: linux/arm64
             runner: ubuntu-latest
     steps:
