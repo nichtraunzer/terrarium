@@ -1,5 +1,5 @@
 ---
-name: terrarium - build, test and publish images
+name: terrarium - build and test images
 
 on:
   push:
