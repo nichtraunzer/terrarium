@@ -23,7 +23,6 @@ concurrency:
 
 jobs:
   build-images:
-    needs: [test]
     name: Build images for platform ${{ matrix.platform }}
     timeout-minutes: 588
     runs-on: ${{ matrix.runner }}
