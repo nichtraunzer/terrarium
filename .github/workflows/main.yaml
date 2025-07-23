@@ -129,7 +129,7 @@ jobs:
   # 3 ────────── Create multi‑arch manifest (v2 action) ──────────────────────────
   ################################################################################
   publish-image-metadata:
-    name: Create & push multi‑arch manifest
+    name: Create & push multi-arch manifest
     if: startsWith(github.ref, 'refs/tags/v') # only for release tags
     needs: [build-amd64, build-arm64]
     runs-on: ubuntu-latest
