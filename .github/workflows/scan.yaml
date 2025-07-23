@@ -18,6 +18,7 @@ jobs:
     # if: ${{ github.repository == 'nichtraunzer/terrarium' }}
     runs-on: ubuntu-22.04
     steps:
+      - uses: ./.github/actions/dump-context
       - name: Checkout code
         uses: actions/checkout@v4
 
