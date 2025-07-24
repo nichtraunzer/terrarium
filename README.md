@@ -120,7 +120,7 @@ docker run --rm -it ghcr.io/nichtraunzer/terrarium:latest \
 | **AWS tooling** | `aws`, `sam`, `cdk` binaries present and runnable                 |
 | **Terraform**   | Required TF versions installed via **tenv**, `tflint` available   |
 | **Infra/Sec**   | `sops --version`, `age-keygen` creates a keyfile                  |
-| **Ruby stack**  | `ruby 3.3.4`, `bundler 2.5.17`, `kitchen` CLI present             |
+| **Ruby stack**  | `ruby`, `bundler`, `kitchen` CLI present                          |
 | **Extras**      | `starship`, `yq`, `zoxide`, `go-task` print their version strings |
 
 These fast, deterministic checks give us confidence to publish multi‑arch images
@@ -148,10 +148,9 @@ These fast, deterministic checks give us confidence to publish multi‑arch imag
 #!/usr/bin/env bats
 load 'test_helper/common.bash'
 
-@test "Terraform 1.9.4 is default" {
+@test "Terraform is installed" {
   run terraform -version
   assert_success
-  assert_output --partial "Terraform v1.9.4"
 }
 ```
 
