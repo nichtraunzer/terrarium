@@ -154,5 +154,5 @@ load 'test_helper/common.bash'
 }
 ```
 
-Commit & push – the GitHub Action will tell you instantly whether the test
+Commit & push – the GitHub Action will tell you whether the test
 (or the image!) needs changes.
