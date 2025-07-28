@@ -1,4 +1,4 @@
-FROM rockylinux/rockylinux:8
+FROM rockylinux/rockylinux:8 AS builder
 
 LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
 
@@ -31,14 +31,17 @@ ENV TERRAFORM_VERSION=1.9.4 \
     HELM_VERSION=3.14.0 \
     STARSHIP_VERSION=1.20.1 \
     ZOXIDE_VERSION=0.9.4 \
-    GO_VERSION=1.21.13 \
+    GO_VERSION=1.24.5 \
     TASK_VERSION=3.38.0 \
     YQ_VERSION=4.44.3
 
 ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
     python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo xorriso"
+
 ENV PATH=/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+# add gem executables and user-local bin (zoxide) to every shell
+ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
 ENV HOME=/home/terrarium
 
 COPY python_requirements /tmp/requirements.txt
@@ -87,14 +90,14 @@ RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo
 
 # Install awssamcli
 RUN if [ x${TARGETARCH} == "xamd64" ]; then \
-      TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "use_pip") \
-      && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
-      && unzip -qq -d awssam awssam.zip \
-      && ./awssam/install \
-      && rm -f awssam.zip \
-      && rm -Rf ./awssam; \
+    TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "use_pip") \
+    && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
+    && unzip -qq -d awssam awssam.zip \
+    && ./awssam/install \
+    && rm -f awssam.zip \
+    && rm -Rf ./awssam; \
     else \
-      pip3 install aws-sam-cli; \
+    pip3 install aws-sam-cli; \
     fi \
     && sam --version
 
@@ -245,7 +248,43 @@ RUN source ~/.bash_profile \
     && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} ruby --version \
     && cd ${GEM_HOME} \
     && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=6 \
+    && bundle binstubs --all \
+    && bundle binstubs bundler --force \
     && rm -Rf ${HOME}/.bundle/cache
+
+# Install test dependencies to allow for testing of output image
+# --- add latest bats-core (one small layer, ~1 MiB) ---
+RUN git clone --depth 1 --branch v1.11.0 \
+    https://github.com/bats-core/bats-core.git /opt/bats-core \
+    && /opt/bats-core/install.sh /usr/local \
+    && bats --version
+COPY tests /home/terrarium/tests
+
+
 
 WORKDIR $HOME
 CMD ["/bin/bash", "-i", "-l"]
+
+################  Stage 2 — test  ###################
+FROM builder AS test
+
+# bring in the official bats-support & bats-assert helpers
+RUN git clone https://github.com/bats-core/bats-support.git /home/terrarium/tests/test_helper/bats-support \
+    && git clone https://github.com/bats-core/bats-assert.git   /home/terrarium/tests/test_helper/bats-assert
+
+# make all tests (and helpers) executable
+RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
+
+# ---- give UID 1001 a real name (optional hardening) ----
+RUN useradd -u 1001 terrarium
+USER 1001:0
+
+# now run them, emitting a proper JUnit XML report
+RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)
+
+# Make sure test files under /home/terrarium/tests are owned by the user and are executable
+################  Stage 3 — final runtime image  ####
+# IMPORTANT: Do not copy bats or tests.
+FROM builder AS final
+# (Optional) clean caches, strip docs
+CMD ["/bin/bash"]

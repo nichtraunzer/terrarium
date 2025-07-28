@@ -1,7 +1,12 @@
 ---
 name: Release images manually
 on:
-  workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Which tag to push (e.g. v1.2.3)"
+        required: true
+        default: "latest"
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -23,6 +28,19 @@ jobs:
       id-token: write
 
     steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/dump-context
+
+      - name: Compute image tag
+        id: compute-tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG=${{ github.event.release.tag_name }}
+          else
+            TAG=${{ github.event.inputs.tag }}
+          fi
+          echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -48,6 +66,6 @@ jobs:
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.${{ matrix.image }}
           push: true
+          target: test
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.event.release.tag_name }}
-          # ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/ods-${{ matrix.image }}:${{ github.event.release.tag_name }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ steps.compute-tag.outputs.image_tag }}

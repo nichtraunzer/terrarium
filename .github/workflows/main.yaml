@@ -1,68 +1,45 @@
 ---
-name: terrarium - tools for terraform development environment
+name: terrarium - build and test images
 
 on:
   push:
-    branches:
-      - master
-    tags:
-      - 'v*'
+    branches: [master]
+    tags: ["v*"] # ⇢ triggers manifest creation
   pull_request:
-    branches:
-      - 'master'
+    branches: [master]
   release:
-    types:
-      - released
+    types: [released]
+
 env:
-  # github.repository as <account>/<repo>
+  # github.repository renders as <owner>/<repo>
   IMAGE_BASE: ${{ github.repository }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+################################################################################
+# 1 ────────── Build & test AMD64 image ────────────────────────────────────────
+################################################################################
 jobs:
-  build-images:
-    name: Build images for platform ${{ matrix.platform }}
-    timeout-minutes: 588
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
-        runner:
-          - ubuntu-latest
-          - buildjet-4vcpu-ubuntu-2204-arm
-        exclude:
-          - platform: linux/amd64
-            runner: buildjet-4vcpu-ubuntu-2204-arm
-          - platform: linux/arm64
-            runner: ubuntu-latest
+  build-amd64:
+    name: Build & test (linux/amd64)
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
     steps:
-      - name: Get lowercase GitHub username
-        id: repository_owner
-        uses: ASzc/change-string-case-action@v6
-        with:
-          string: ${{ github.repository_owner }}
-      - name: Set image
-        id: image
-        run: |
-          echo 'image=ghcr.io/${{ steps.repository_owner.outputs.lowercase }}/terrarium' >> "${GITHUB_OUTPUT}"
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/dump-context
+
       - name: Docker metadata
-        id: docker_image_metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository_owner }}/terrarium
-          #  ${{ steps.image.outputs.image }}
-          # Docker tags based on the following events/attributes
-          flavor: |
-            latest=false,suffix=-${{ matrix.platform }}
+          images: ghcr.io/${{ github.repository_owner }}/terrarium
+          flavor: latest=auto,suffix=-linux-amd64
           tags: |
             type=schedule
             type=ref,event=branch
@@ -71,52 +48,121 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to ghcr.io
-        if: success() && github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Buildx
-        id: buildx_and_push
+
+      - name: Build, push & test (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
-          push: ${{ github.event_name != 'pull_request' }}
           context: ./terraform/docker
           file: terraform/docker/Dockerfile.terrarium
-          platforms: ${{ matrix.platform }}
-          labels: ${{ steps.docker_image_metadata.outputs.labels }}
-          tags: ${{ steps.docker_image_metadata.outputs.tags }}
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          tags: ${{ steps.meta.outputs.tags }}
+          target: test
 
-  build-multi-architecture-manifest:
-    needs:
-      - build-images
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' }}
-    permissions:
-      contents: read
-      packages: write
-    timeout-minutes: 30
+  ################################################################################
+  # 2 ────────── Build & test ARM64 image ────────────────────────────────────────
+  ################################################################################
+  build-arm64:
+    name: Build & test (linux/arm64)
+    runs-on: ubuntu-22.04-arm
+    permissions: { contents: read, packages: write }
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/dump-context
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/terrarium
+          flavor: latest=auto,suffix=-linux-arm64
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build, push & test (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./terraform/docker
+          file: terraform/docker/Dockerfile.terrarium
+          platforms: linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          tags: ${{ steps.meta.outputs.tags }}
+          target: test
+
+  ################################################################################
+  # 3 ────────── Create multi‑arch manifest (v2 action) ──────────────────────────
+  ################################################################################
+  publish-image-metadata:
+    name: Create & push multi-arch manifest
+    if: startsWith(github.ref, 'refs/tags/v') # only for release tags
+    needs: [build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/dump-context
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: metadata
+
+      - name: Generate release tags
+        id: meta
+        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
-      - uses: int128/docker-manifest-create-action@v1
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create and push manifest
+        uses: int128/docker-manifest-create-action@v2
         with:
-          tags: ${{ steps.metadata.outputs.tags }}
-          suffixes: |
-            -linux-amd64
-            -linux-arm64
+          # Tags that end‑users will pull (e.g. ghcr.io/org/repo:v1.2.3)
+          tags: ${{ steps.meta.outputs.tags }}
+          # Image digests built in the two previous jobs
+          sources: |
+            ghcr.io/${{ github.repository }}@${{ needs.build-amd64.outputs.digest }}
+            ghcr.io/${{ github.repository }}@${{ needs.build-arm64.outputs.digest }}
