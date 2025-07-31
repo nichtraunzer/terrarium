@@ -3,6 +3,7 @@ FROM rockylinux/rockylinux:8 AS builder
 LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
 
 ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILDARCH BUILDVARIANT
+ARG PYTHON_VERSION=3.12.11
 
 #ENV TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64")
 #ENV TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64")
@@ -35,11 +36,15 @@ ENV TERRAFORM_VERSION=1.9.4 \
     TASK_VERSION=3.38.0 \
     YQ_VERSION=4.44.3
 
-ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel python36 platform-python-devel unzip wget \
-    python3.12 python3.12-devel python3.12-pip python3.12-setuptools \
+ENV PYTHON_VERSION=${PYTHON_VERSION}
+ENV PYENV_ROOT=/opt/pyenv
+
+ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel unzip wget \
+    bzip2-devel xz-devel tk-devel gdbm-devel libuuid-devel \
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo xorriso"
 
-ENV PATH=/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+# put pyenv shims ahead of everything else
+ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 # add gem executables and user-local bin (zoxide) to every shell
 ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
 ENV HOME=/home/terrarium
@@ -67,13 +72,25 @@ RUN set -x \
     && dnf install -y $INSTALL_PKGS \
     && dnf clean all
 
-# Upgrade PIP
-RUN pip3 install --upgrade pip \
-    && pip3 -V \
-    && pip3 install virtualenv pycodestyle \
-    && pip3.12 install virtualenv pycodestyle \
-    && alternatives --set python /usr/bin/python3.12 \
-    && alternatives --set python3 /usr/bin/python3.12
+# ─── PYTHON via pyenv ────────────────────────────────────────────────────────
+RUN umask 0002 \
+    && git clone https://github.com/pyenv/pyenv.git ${PYENV_ROOT} \
+    && git clone https://github.com/pyenv/pyenv-update.git ${PYENV_ROOT}/plugins/pyenv-update \
+    && ${PYENV_ROOT}/bin/pyenv install ${PYTHON_VERSION} \
+    && ${PYENV_ROOT}/bin/pyenv global  ${PYTHON_VERSION} \
+    && python  --version && pip --version
+
+# ─── Python user‑level libraries ─────────────────────────────────────────────
+RUN python -m pip install --upgrade pip setuptools \
+    && python -m pip install -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements
+
+
+
+# ─── uv – ultra‑fast dependency manager & Python launcher ───────────────────
+RUN curl -Ls https://astral.sh/uv/install.sh | bash \
+    && uv --version
+
 
 # Configure PIP SSL validation
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
@@ -101,10 +118,6 @@ RUN if [ x${TARGETARCH} == "xamd64" ]; then \
     fi \
     && sam --version
 
-# Install python requirements
-RUN echo python3 -m pip install -r /tmp/requirements.txt \
-    && python3.12 -m pip install -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements
 
 # Install aws cdk
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
