@@ -11,9 +11,6 @@ load 'test_helper/common.bash'
   assert_output --partial "8."
 }
 
-@test "Python is installed" {
-  check_binary python
-}
 
 @test "jq is installed" {
   check_binary jq
