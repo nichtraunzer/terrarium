@@ -1,303 +1,301 @@
-FROM rockylinux/rockylinux:8 AS builder
-
-LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
-
-ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILDARCH BUILDVARIANT
+# --------- Global args used across stages ---------
 ARG PYTHON_VERSION=3.12.11
+ARG RUBY_VERSION=3.4.5
+ARG RUBY_VERSION_DEPRECATED=3.2.2
+ARG BUNDLER_VERSION=2.7.1
+ARG BUNDLER_VERSION_DEPRECATED=2.4.22
+ARG GEM_HOME=/opt/bundle
 
-#ENV TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64")
-#ENV TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64")
+# ================= Stage 0 — buildlang (compile on Rocky 9) =================
+FROM rockylinux:9 AS buildlang
+ARG PYTHON_VERSION RUBY_VERSION RUBY_VERSION_DEPRECATED BUNDLER_VERSION BUNDLER_VERSION_DEPRECATED GEM_HOME
 
-ENV TERRAFORM_VERSION=1.9.4 \
-    TERRAFORM_VERSION_DEPRECATED=1.4.6 \
-    TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
-    TERRAFORM_DOCS_VERSION=v0.19.0 \
-    RUBY_VERSION=3.3.4 \
-    RUBY_VERSION_DEPRECATED=3.2.2 \
-    PACKER_VERSION=1.11.2 \
-    CONSUL_VERSION=1.19.1 \
-    TENV_VERSION=3.0.0 \
-    TENV_AUTO_INSTALL=true \
-    TENV_ROOT=/opt/tenv \
-    TFLINT_VERSION=0.52.0 \
-    NODEJS_VERSION=20.16.0 \
-    BUNDLER_VERSION=2.5.17 \
-    BUNDLER_VERSION_DEPRECATED=2.4.13 \
-    GEM_HOME=/opt/bundle \
+ENV PYENV_ROOT=/opt/pyenv \
     RBENV_ROOT=/opt/rbenv \
-    RBENV_SHELL=bash \
-    SOPS_VERSION=3.9.0 \
-    AGE_VERSION=1.2.0 \
-    KUBECTL_VERSION=1.30 \
-    HELM_VERSION=3.14.0 \
-    STARSHIP_VERSION=1.20.1 \
-    ZOXIDE_VERSION=0.9.4 \
-    GO_VERSION=1.24.5 \
-    TASK_VERSION=3.38.0 \
-    YQ_VERSION=4.44.3
+    GEM_HOME=${GEM_HOME}
+ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:$PATH
 
-ENV PYTHON_VERSION=${PYTHON_VERSION}
-ENV PYENV_ROOT=/opt/pyenv
-
-ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch readline readline-devel unzip wget \
-    bzip2-devel xz-devel tk-devel gdbm-devel libuuid-devel \
-    libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo xorriso"
-
-# put pyenv shims ahead of everything else
-ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
-# add gem executables and user-local bin (zoxide) to every shell
-ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
-ENV HOME=/home/terrarium
-
-COPY python_requirements /tmp/requirements.txt
-
-RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVARIANT}, \
-    building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
-
-# Updates OS packages
-RUN dnf install -y redhat-lsb-core \
-    && lsb_release -d \
-    && dnf update -y \
-    && lsb_release -d \
+# Full toolchain + all -devel libs needed by CPython/Ruby & native gems
+# NOTE: don't install 'curl' here to avoid conflict with curl-minimal on EL9.
+RUN dnf -y update \
+    && dnf -y install dnf-plugins-core \
+    && dnf config-manager --set-enabled crb \
+    && dnf -y groupinstall "Development Tools" \
+    && dnf -y install \
+    git wget tar patch which sudo procps diffutils xz unzip \
+    gcc gcc-c++ make autoconf automake libtool bison \
+    zlib zlib-devel bzip2 bzip2-devel xz xz-devel \
+    openssl openssl-devel libffi libffi-devel \
+    sqlite sqlite-devel libyaml libyaml-devel \
+    readline readline-devel gdbm gdbm-devel libuuid libuuid-devel \
+    tk tk-devel \
+    xorriso \
     && dnf clean all
 
-# Install jq
-RUN dnf install -y epel-release \
-    && crb enable \
-    && dnf install -y jq parallel \
-    && jq -Version \
-    && dnf clean all
-
-RUN set -x \
-    && dnf install -y $INSTALL_PKGS \
-    && dnf clean all
-
-# ─── PYTHON via pyenv ────────────────────────────────────────────────────────
+# ---- pyenv & Python ----
 RUN umask 0002 \
     && git clone https://github.com/pyenv/pyenv.git ${PYENV_ROOT} \
     && git clone https://github.com/pyenv/pyenv-update.git ${PYENV_ROOT}/plugins/pyenv-update \
     && ${PYENV_ROOT}/bin/pyenv install ${PYTHON_VERSION} \
     && ${PYENV_ROOT}/bin/pyenv global  ${PYTHON_VERSION} \
-    && python  --version && pip --version
+    && python --version && pip --version
 
-# ─── Python user‑level libraries ─────────────────────────────────────────────
-RUN python -m pip install --upgrade pip setuptools \
-    && python -m pip install -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements
+# ---- rbenv & Rubies + Bundler ----
+RUN git clone https://github.com/rbenv/rbenv.git ${RBENV_ROOT} \
+    && git clone https://github.com/rbenv/ruby-build.git ${RBENV_ROOT}/plugins/ruby-build \
+    && ${RBENV_ROOT}/bin/rbenv install ${RUBY_VERSION} \
+    && ${RBENV_ROOT}/bin/rbenv install ${RUBY_VERSION_DEPRECATED} \
+    && ${RBENV_ROOT}/bin/rbenv global ${RUBY_VERSION} \
+    && RBENV_VERSION=${RUBY_VERSION}            gem install bundler -v ${BUNDLER_VERSION} \
+    && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} gem install bundler -v ${BUNDLER_VERSION_DEPRECATED}
 
+# Preinstall your Gemfile into ${GEM_HOME} so native gems compile here
+COPY Gemfile Gemfile.lock /tmp/gems/
+RUN RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME} \
+    && RBENV_VERSION=${RUBY_VERSION} bash -lc "cd /tmp/gems \
+    && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=6 \
+    && bundle binstubs --all \
+    && bundle binstubs bundler --force" \
+    && rm -rf /root/.bundle/cache
 
+# ================= Stage 1 — builder (UBI 9) =================
+FROM registry.access.redhat.com/ubi9/ubi:latest AS builder
+
+LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
+
+ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILDARCH BUILDVARIANT
+ARG PYTHON_VERSION
+ARG GEM_HOME
+
+# Tool versions
+ENV AGE_VERSION=1.2.1 \
+    AWS_CDK_VERSION=2.1024.0 \
+    BUNDLER_VERSION_DEPRECATED=2.4.22 \
+    BUNDLER_VERSION=2.7.1 \
+    CONSUL_VERSION=1.21.3 \
+    GEM_HOME=/opt/bundle \
+    GO_VERSION=1.24.6 \
+    HELM_VERSION=3.18.4 \
+    KUBECTL_VERSION=1.33.3 \
+    NODEJS_VERSION=24.5.0 \
+    PACKER_VERSION=1.14.1 \
+    RBENV_ROOT=/opt/rbenv \
+    RBENV_SHELL=bash \
+    RUBY_VERSION_DEPRECATED=3.2.2 \
+    RUBY_VERSION=3.4.5 \
+    SOPS_VERSION=3.10.2 \
+    STARSHIP_VERSION=1.23.0 \
+    TASK_VERSION=3.43.1 \
+    TENV_AUTO_INSTALL=true \
+    TENV_ROOT=/opt/tenv \
+    TENV_VERSION=1.2.0 \
+    TERRAFORM_CONFIG_INSPECT_VERSION=latest \
+    TERRAFORM_DOCS_VERSION=v0.20.0 \
+    TERRAFORM_VERSION_DEPRECATED=1.4.7 \
+    TERRAFORM_VERSION=1.12.2 \
+    TFLINT_VERSION=0.58.1 \
+    YQ_VERSION=4.47.1 \
+    ZOXIDE_VERSION=0.9.4
+
+ENV PYENV_ROOT=/opt/pyenv
+
+# Put pyenv/rbenv and Node ahead on PATH; add gems + user bins
+ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
+ENV HOME=/home/terrarium
+
+RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVARIANT}, \
+    building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
+
+# OS update
+RUN . /etc/os-release && echo "Base image: $PRETTY_NAME" \
+    && dnf -y update \
+    && dnf clean all
+
+# Enable CRB for UBI + EPEL; get jq/parallel
+RUN dnf -y install dnf-plugins-core \
+    && dnf config-manager --set-enabled ubi-9-codeready-builder-rpms \
+    && dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+    && dnf -y install jq parallel \
+    && jq --version \
+    && dnf clean all
+
+# Runtime & build tools that DO exist in UBI repos (no 'curl' here)
+ENV RUNTIME_PKGS="gcc gcc-c++ make git zlib zlib-devel unzip wget \
+    bzip2 bzip2-devel xz xz-devel sqlite sqlite-devel libffi libffi-devel \
+    openssl openssl-devel libuuid libyaml tk gdbm tar diffutils \
+    autoconf automake libtool procps which sudo"
+RUN set -x \
+    && dnf -y install $RUNTIME_PKGS \
+    && dnf clean all
+
+# ---- Bring in languages, gems, and xorriso compiled on Rocky ----
+COPY --from=buildlang /opt/pyenv /opt/pyenv
+COPY --from=buildlang /opt/rbenv /opt/rbenv
+COPY --from=buildlang /opt/bundle /opt/bundle
+
+# xorriso + its runtime libs (EPEL/UBI does not provide xorriso)
+COPY --from=buildlang /usr/bin/xorriso /usr/bin/xorriso
+COPY --from=buildlang /usr/lib64/libisoburn.so.* /usr/lib64/
+COPY --from=buildlang /usr/lib64/libisofs.so.*  /usr/lib64/
+COPY --from=buildlang /usr/lib64/libburn.so.*   /usr/lib64/
+RUN /sbin/ldconfig || /usr/sbin/ldconfig || true
 
 # ─── uv – ultra‑fast dependency manager & Python launcher ───────────────────
-RUN curl -Ls https://astral.sh/uv/install.sh | bash \
-    && uv --version
+RUN curl -Ls https://astral.sh/uv/install.sh | bash && uv --version
 
-
-# Configure PIP SSL validation
+# Configure PIP SSL validation (pyenv’s pip)
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
     && pip config list
 
+# ─── Python user‑level libraries via uv ─────────────────────────────────────
+COPY pyproject.toml /tmp/pyproject.toml
+COPY uv.lock       /tmp/uv.lock
+RUN uv sync --directory /tmp --no-managed-python --frozen
+
 # Install awscli2
 RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && curl "https://awscli.amazonaws.com/awscli-exe-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awscliv2.zip" \
+    && curl -fsSLo awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" \
     && unzip -qq awscliv2.zip \
     && ./aws/install \
-    && rm -f awscliv2.zip \
-    && rm -Rf ./aws \
+    && rm -rf aws awscliv2.zip \
     && /usr/local/bin/aws --version
 
-# Install awssamcli
-RUN if [ x${TARGETARCH} == "xamd64" ]; then \
-    TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "use_pip") \
-    && curl -L "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" -o "awssam.zip" \
-    && unzip -qq -d awssam awssam.zip \
-    && ./awssam/install \
-    && rm -f awssam.zip \
-    && rm -Rf ./awssam; \
+# Install AWS SAM CLI (zip for amd64, pip for arm64)
+RUN if [ "x${TARGETARCH}" = "xamd64" ]; then \
+    TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "use_pip"); \
+    curl -fsSLo awssam.zip "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip"; \
+    unzip -qq -d awssam awssam.zip && ./awssam/install && rm -rf awssam awssam.zip; \
     else \
-    pip3 install aws-sam-cli; \
+    pip install --no-cache-dir aws-sam-cli; \
     fi \
     && sam --version
 
-
-# Install aws cdk
+# Install Node + AWS CDK
 RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
-    && wget -q "https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz" \
+    && curl -fsSLO "https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz" \
     && xzcat node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz | tar xpf - -C /opt/ \
-    && rm -f node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz \
     && mv /opt/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT} /opt/node \
-    && /opt/node/bin/npm install -g aws-cdk \
+    && rm -f node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz \
+    && /opt/node/bin/npm install -g aws-cdk@${AWS_CDK_VERSION} \
     && chown -R 1001:0 /opt/node && chmod +x /opt/node/bin/* \
-    && node --version \
-    && cdk --version
+    && node --version && cdk --version
 
-# Install tenv
+# Install tenv + Terraform versions
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && yum install -y https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm \
+    && dnf -y install "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm" \
     && tenv tf install ${TERRAFORM_VERSION} \
     && tenv tf install ${TERRAFORM_VERSION_DEPRECATED} \
     && tenv tf use ${TERRAFORM_VERSION} \
     && terraform -version \
     && tenv tf list \
     && echo 'export PATH=$(/usr/bin/tenv update-path)' > /etc/profile.d/tenv.sh \
-    && chown -R 1001:0 "${TENV_ROOT}" \
-    && chmod -R 2775 "${TENV_ROOT}"
+    && chown -R 1001:0 "${TENV_ROOT}" && chmod -R 2775 "${TENV_ROOT}"
 
-# Install tflint
+# tflint
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/tflint.zip -d /usr/local/bin \
-    && rm -rf /tmp/tflint.zip \
+    && curl -fsSLo /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TARGETARCH_SYNONYM_SHORT2}.zip" \
+    && unzip -qq /tmp/tflint.zip -d /usr/local/bin \
+    && rm -f /tmp/tflint.zip \
     && tflint --version
 
-# Install Packer
+# Packer
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/packer.zip -d /usr/local/bin packer \
-    && rm -rf /tmp/packer.zip \
+    && curl -fsSLo /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
+    && unzip -qq /tmp/packer.zip -d /usr/local/bin packer \
+    && rm -f /tmp/packer.zip \
     && packer --version
 
-## Install consul-cli
+# Consul
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/consul.zip -q "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip /tmp/consul.zip -d /usr/local/bin consul \
+    && curl -fsSLo /tmp/consul.zip "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
+    && unzip -qq /tmp/consul.zip -d /usr/local/bin consul \
     && rm -f /tmp/consul.zip \
     && chmod +x /usr/local/bin/consul \
     && /usr/local/bin/consul -version
 
-# Install terraform-config-inspect
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/terraform-config-inspect.tar.gz https://github.com/nichtraunzer/terraform-config-inspect/releases/download/v${TERRAFORM_CONFIG_INSPECT_VERSION}/terraform-config-inspect_${TERRAFORM_CONFIG_INSPECT_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
+# terraform-config-inspect (support "latest" tag)
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64"); \
+    if [ "${TERRAFORM_CONFIG_INSPECT_VERSION}" = "latest" ]; then \
+    TCI_TAG="$(curl -fsSL https://api.github.com/repos/nichtraunzer/terraform-config-inspect/releases/latest | jq -r .tag_name)"; \
+    TCI_VER="${TCI_TAG#v}"; \
+    else \
+    TCI_TAG="v${TERRAFORM_CONFIG_INSPECT_VERSION}"; \
+    TCI_VER="${TERRAFORM_CONFIG_INSPECT_VERSION#v}"; \
+    fi; \
+    curl -fsSLo /tmp/terraform-config-inspect.tar.gz \
+    "https://github.com/nichtraunzer/terraform-config-inspect/releases/download/${TCI_TAG}/terraform-config-inspect_${TCI_VER}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
     && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ terraform-config-inspect \
     && rm -f /tmp/terraform-config-inspect.tar.gz \
     && chmod 755 /usr/local/bin/terraform-config-inspect \
     && /usr/local/bin/terraform-config-inspect
 
-# Install Terraform Docs
+# Terraform Docs
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
+    && curl -fsSLo /tmp/terraform-docs.tar.gz "https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
     && tar zxpf /tmp/terraform-docs.tar.gz -C /usr/local/bin/ terraform-docs \
     && rm -f /tmp/terraform-docs.tar.gz \
     && chmod +x /usr/local/bin/terraform-docs \
     && /usr/local/bin/terraform-docs --help
 
-# Install mozilla/sops and AGE
+# sops + age
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && dnf install -y https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm \
-    && wget -q -O /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
+    && dnf -y install "https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm" \
+    && curl -fsSLo /tmp/age.tar.gz "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
     && tar zxpf /tmp/age.tar.gz --strip-components=1 -C /usr/local/bin age/age age/age-keygen \
     && rm -f /tmp/age.tar.gz \
     && /usr/bin/sops --version \
     && /usr/local/bin/age --version \
     && dnf clean all
 
-# Install starship and zoxide
-RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && wget -q -O /tmp/starship.sh https://starship.rs/install.sh \
+# starship & zoxide
+RUN curl -fsSLo /tmp/starship.sh https://starship.rs/install.sh \
     && chmod +x /tmp/starship.sh \
     && /tmp/starship.sh --yes \
     && rm -f /tmp/starship.sh \
-    && wget -q -O /tmp/zoxide.sh https://webinstall.dev/zoxide \
+    && curl -fsSLo /tmp/zoxide.sh https://webinstall.dev/zoxide \
     && chmod +x /tmp/zoxide.sh \
-    && /tmp/zoxide.sh \
-    && rm -f /tmp/zoxide.sh
+    && /tmp/zoxide.sh && rm -f /tmp/zoxide.sh
 
-# Install GO
+# Go (toolchain tarball) + go-task
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /tmp/go.tar.gz https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz \
-    && rm -f /tmp/go.tar.gz
-
-# Install go-task
+    && curl -fsSLo /tmp/go.tar.gz "https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz && rm -f /tmp/go.tar.gz
+ENV PATH=$PATH:/usr/local/go/bin
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d v${TASK_VERSION} \
     && task --version
 
-# Install yq
+# yq
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && wget -q -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2} \
+    && curl -fsSLo /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2}" \
     && chmod +x /usr/local/bin/yq \
     && /usr/local/bin/yq --version
 
-ENV PATH=$PATH:/usr/local/go/bin
-
-RUN chown -R 1001:0 ${HOME} \
-    && chmod -R g+rw ${HOME} \
-    && mkdir -p ${GEM_HOME} \
-    && chmod 2770 ${GEM_HOME}
-
-RUN chown -R 1001:0 ${GEM_HOME} \
-    && chmod -R g+rw ${GEM_HOME} \
+# Ownerships & dirs
+RUN chown -R 1001:0 ${HOME} && chmod -R g+rw ${HOME} \
+    && mkdir -p ${GEM_HOME} && chmod 2770 ${GEM_HOME} \
+    && chown -R 1001:0 ${GEM_HOME} && chmod -R g+rw ${GEM_HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
 
-# setup ruby env and bundler gems
-# RUBY https://syslint.com/blog/tutorial/how-to-install-ruby-on-rails-with-rbenv-on-centos-7-or-rhel-7/
-RUN cd /opt \
-    && umask 0002 \
-    && git clone https://github.com/rbenv/rbenv.git /opt/rbenv \
-    && echo 'export PATH="/opt/rbenv/shims:/opt/rbenv/bin:$PATH"' >> ~/.bash_profile \
-    && echo 'eval "$(rbenv init -)"' >> ~/.bash_profile \
-    && source ~/.bash_profile \
-    && git clone https://github.com/rbenv/ruby-build.git /opt/rbenv/plugins/ruby-build \
-    && echo 'export PATH="/opt/rbenv/plugins/ruby-build/bin:$PATH"' >> ~/.bash_profile \
-    && source ~/.bash_profile \
-    && rbenv install ${RUBY_VERSION} \
-    && rbenv global ${RUBY_VERSION} \
-    && gem install bundler -v ${BUNDLER_VERSION} \
-    && RBENV_VERSION=${RUBY_VERSION} gem install bundler -v ${BUNDLER_VERSION} \
-    && bundle config default ${BUNDLER_VERSION} \
-    && RBENV_VERSION=${RUBY_VERSION} bundle config default ${BUNDLER_VERSION} \
-    && bundle config set --global path ${GEM_HOME} \
-    && RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME}
-
-RUN source ~/.bash_profile \
-    && rbenv install ${RUBY_VERSION_DEPRECATED} \
-    && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} gem install bundler -v ${BUNDLER_VERSION_DEPRECATED} \
-    && rbenv install -L
-
-COPY Gemfile Gemfile.lock ${GEM_HOME}/
-
-RUN source ~/.bash_profile \
-    && RBENV_VERSION=${RUBY_VERSION} ruby --version \
-    && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} ruby --version \
-    && cd ${GEM_HOME} \
-    && BUNDLE_SILENCE_ROOT_WARNING=true bundle install --full-index --jobs=6 \
-    && bundle binstubs --all \
-    && bundle binstubs bundler --force \
-    && rm -Rf ${HOME}/.bundle/cache
-
-# Install test dependencies to allow for testing of output image
-# --- add latest bats-core (one small layer, ~1 MiB) ---
-RUN git clone --depth 1 --branch v1.11.0 \
-    https://github.com/bats-core/bats-core.git /opt/bats-core \
+# bats-core for tests
+RUN git clone --depth 1 --branch v1.11.0 https://github.com/bats-core/bats-core.git /opt/bats-core \
     && /opt/bats-core/install.sh /usr/local \
     && bats --version
 COPY tests /home/terrarium/tests
 
-
-
 WORKDIR $HOME
 CMD ["/bin/bash", "-i", "-l"]
 
-################  Stage 2 — test  ###################
+# ================= Stage 2 — test =================
 FROM builder AS test
-
-# bring in the official bats-support & bats-assert helpers
 RUN git clone https://github.com/bats-core/bats-support.git /home/terrarium/tests/test_helper/bats-support \
     && git clone https://github.com/bats-core/bats-assert.git   /home/terrarium/tests/test_helper/bats-assert
-
-# make all tests (and helpers) executable
 RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
-
-# ---- give UID 1001 a real name (optional hardening) ----
 RUN useradd -u 1001 terrarium
 USER 1001:0
-
-# now run them, emitting a proper JUnit XML report
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)
 
-# Make sure test files under /home/terrarium/tests are owned by the user and are executable
-################  Stage 3 — final runtime image  ####
-# IMPORTANT: Do not copy bats or tests.
+# ================= Stage 3 — final =================
 FROM builder AS final
-# (Optional) clean caches, strip docs
 CMD ["/bin/bash"]
