@@ -1,10 +1,13 @@
-#  
-boto3~=1.24
-requests~=2.32
-simplejson~=3.19
+#
 argparse~=1.4
+azure-cli~=2.63
+boto3~=1.24
 botocore
 pipenv~=2024.0
-python-hcl2~=2.0 ## TODO 4.3.0 https://github.com/amplify-education/python-hcl2
 pre-commit~=3.8.0
-azure-cli~=2.63
+pycodestyle~=2.14.0
+python-hcl2~=2.0 ## TODO 4.3.0 https://github.com/amplify-education/python-hcl2
+requests~=2.32
+simplejson~=3.19
+uv~=0.8.4
+virtualenv~=20.32.0
