@@ -20,3 +20,11 @@ load 'test_helper/common.bash'
   [ -s "$tempfile" ]
   rm -f "$tempfile"
 }
+
+
+# xorriso was built on Rocky and copied into UBI with its runtime libs.
+@test "xorriso present" {
+  run xorriso -version
+  assert_success
+}
+

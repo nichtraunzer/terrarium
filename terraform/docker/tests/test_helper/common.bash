@@ -47,3 +47,11 @@ path_contains() {
     *) echo 0;;
   esac
 }
+
+
+# Usage: check_version xorriso -version
+check_version() {
+  local exe="$1"; shift
+  run "$exe" "$@"
+  assert_success
+}
