@@ -1,3 +1,4 @@
 repomix-output.xml
 .ruby-version
-*/vendor/**
+# ignore all vendor folders in root and subdirectories
+*vendor/*
