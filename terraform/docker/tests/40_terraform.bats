@@ -11,3 +11,8 @@ load 'test_helper/common.bash'
 @test "TFLint" { check_binary tflint; }
 
 @test "terraform-docs" { check_binary terraform-docs; }
+
+@test "terraform-config-inspect" {
+  run terraform-config-inspect --json
+  assert_success
+}
