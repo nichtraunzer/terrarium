@@ -6,8 +6,6 @@ This project builds a **developer container** (Dev Container / Docker image) wit
 
 **Preferred:** Use GitHub’s “Report a vulnerability” (Security → Report a vulnerability) so we can triage and discuss privately.
 
-**Fallback contact:** [REPLACE WITH EMAIL OR SECURITY PORTAL], e.g. `security@effektiv.ai`.
-
 When you report, please include:
 
 - Affected version(s): commit SHA, tag, and if applicable the **container image tag & digest**.
