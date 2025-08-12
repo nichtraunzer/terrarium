@@ -20,7 +20,7 @@
 
 ---
 
-## 2025-08-29 PR #40 — feat(ci): add Bats test‑suite for basic successful tool installation checks (merged 2025‑07‑28)
+## 2025-07-29 PR #40 — feat(ci): add Bats test‑suite for basic successful tool installation checks (merged 2025‑07‑28)
 
 ### Added
 
@@ -28,7 +28,7 @@
   - `00_core.bats`, `20_infra.bats`, `30_aws.bats`, `40_terraform.bats`, `50_ruby_ecosystem.bats`, `60_k8s.bats`, `90_extras.bats`.
 - Test helper libraries vendored (`bats-support`, `bats-assert`) plus `tests/test_helper/common.bash`.
 - New multi‑stage `Dockerfile.terrarium` **test** target that runs the suite and emits a JUnit report at build time.
-- CI updated so builds target the **test** stage across all matrix architectures; failures block image publishing.
+- CI updated so builds target t Yeah so it's still old it is still old and new in sequence yet he **test** stage across all matrix architectures; failures block image publishing.
 
 ### Changed
 
