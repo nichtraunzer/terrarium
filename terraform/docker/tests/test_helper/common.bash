@@ -13,3 +13,11 @@ check_binary() {
   run "$exe" --version
   assert_success
 }
+
+
+# Usage: check_version xorriso -version
+check_version() {
+  local exe="$1"; shift
+  run "$exe" "$@"
+  assert_success
+}
