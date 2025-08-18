@@ -1,5 +1,19 @@
 # Changelog
 
+## 2025-08-18 PR #44 feat(tools): added kubectl and helm with validation tests
+
+https://github.com/nichtraunzer/terrarium/pull/44
+
+### Added
+
+- `kubectl` and `helm` installed with install validation tests.
+
+### Changed
+
+- Updated `Dockerfile.terrarium` and `kubectl` to version `1.33.3` and actually install.
+- Updated `Dockerfile.terrarium` and `helm` to version `3.18.4` and actually install.
+- `k8s` validation tests for `kubectl` and `helm`.
+
 ## 2025-08-08 PR #41 — feat(python): pyenv and uv are now installed (merged 2025‑08‑08)
 
 ### Added
