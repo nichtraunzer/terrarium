@@ -20,7 +20,6 @@ load 'test_helper/common.bash'
   assert_output --partial "uv"
 }
 
-
 @test "pyenv is installed" {
   check_binary pyenv
 }
