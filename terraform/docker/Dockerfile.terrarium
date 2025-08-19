@@ -343,6 +343,10 @@ RUN chown -R 1001:0 ${HOME} && chmod -R g+rw ${HOME} \
     && chown -R 1001:0 ${GEM_HOME} && chmod -R g+rw ${GEM_HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
 
+
+RUN dnf -y install perl-IPC-Cmd \
+    && dnf clean all
+
 # ---- Kitchen & Cinc wrappers (MANDATORY) -----------------------------------
 RUN install -d -m 0755 /usr/local/bin
 
