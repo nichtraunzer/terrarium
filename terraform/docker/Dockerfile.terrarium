@@ -28,8 +28,8 @@ ENV TERRAFORM_VERSION=1.9.4 \
     RBENV_SHELL=bash \
     SOPS_VERSION=3.9.0 \
     AGE_VERSION=1.2.0 \
-    KUBECTL_VERSION=1.30 \
-    HELM_VERSION=3.14.0 \
+    HELM_VERSION=3.18.4 \
+    KUBECTL_VERSION=1.33.3 \
     STARSHIP_VERSION=1.20.1 \
     ZOXIDE_VERSION=0.9.4 \
     GO_VERSION=1.24.5 \
@@ -218,6 +218,19 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && chmod +x /usr/local/bin/yq \
     && /usr/local/bin/yq --version
 
+# kubectl
+RUN curl -fsSLo /usr/local/bin/kubectl \
+    https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
+    && kubectl version --client=true
+
+# helm
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && curl -fsSLo /tmp/helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
+    && tar -zxvf /tmp/helm.tar.gz --strip-components=1 -C /usr/local/bin linux-${TARGETARCH_SYNONYM_SHORT2}/helm \
+    && rm -f /tmp/helm.tar.gz \
+    && helm version
+
 ENV PATH=$PATH:/usr/local/go/bin
 
 RUN chown -R 1001:0 ${HOME} \
@@ -228,6 +241,9 @@ RUN chown -R 1001:0 ${HOME} \
 RUN chown -R 1001:0 ${GEM_HOME} \
     && chmod -R g+rw ${GEM_HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
+
+# ─── OpenSSL build prereqs for ruby-build on RHEL/Rocky ───────────────
+RUN dnf -y install perl-IPC-Cmd && dnf clean all
 
 # setup ruby env and bundler gems
 # RUBY https://syslint.com/blog/tutorial/how-to-install-ruby-on-rails-with-rbenv-on-centos-7-or-rhel-7/
