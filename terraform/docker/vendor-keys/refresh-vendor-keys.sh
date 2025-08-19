@@ -108,7 +108,7 @@ hashi_fpr="$(fp_from_keyfile "$hashi_asc")"
 #############
 aws_asc="$tmp/awscli.asc"
 aws_fpr=""
-aws_url="${AWS_CLI_PGP_URL:-}" # if you export it, we’ll try it first
+aws_url="${AWS_CLI_PGP_URL:-https://awscli.amazonaws.com/AWSCLIV2.asc}" # if you export it, we’ll try it first
 
 # 1) If a direct URL is provided, try that (may be 404 / HTML now)
 if [[ -n "$aws_url" ]]; then
