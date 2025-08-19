@@ -242,6 +242,9 @@ RUN chown -R 1001:0 ${GEM_HOME} \
     && chmod -R g+rw ${GEM_HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
 
+# ─── OpenSSL build prereqs for ruby-build on RHEL/Rocky ───────────────
+RUN dnf -y install perl-IPC-Cmd && dnf clean all
+
 # setup ruby env and bundler gems
 # RUBY https://syslint.com/blog/tutorial/how-to-install-ruby-on-rails-with-rbenv-on-centos-7-or-rhel-7/
 RUN cd /opt \
