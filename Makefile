@@ -11,11 +11,12 @@ SHELLFLAGS := -eu -o pipefail -c
 
 # ---------------- Configuration ----------------
 # Keys management
-KEYS_SCRIPT ?= vendor-keys/refresh-vendor-keys.sh
-ENV_FILE    ?= vendor-keys/vendor-keys.env  # optional: where to stash shell-style pins
+KEYS_SCRIPT ?= terraform/docker/vendor-keys/refresh-vendor-keys.sh
+ENV_FILE    ?= terraform/docker/vendor-keys/vendor-keys.env  # optional: where to stash shell-style pins
 
 # Docker build/test
-DOCKERFILE       ?= Dockerfile.terrarium
+DOCKERFILE       ?= terraform/docker/Dockerfile.terrarium
+DOCKER_CONTEXT   ?= terraform/docker
 IMAGE            ?= terrarium
 TAG              ?= latest
 TEST_STAGE       ?= test                     # Dockerfile stage that runs tests
@@ -23,6 +24,11 @@ TEST_TAG         ?= test                     # Tag for test-stage image: $(IMAGE
 CONTAINER_NAME   ?= terrarium                # Used by docker-test-exec and as a default name
 TEST_REPORT_DIR  ?= test-reports             # Host folder for JUnit/XML reports
 BATS_TEST_PATH   ?= /home/terrarium/tests    # In-container path to your bats tests
+
+# Docker cache control
+# Usage: make docker-build NO_CACHE=1
+#        make docker-build-test NO_CACHE=1
+NO_CACHE         ?= 0
 
 # CPU count (Linux, macOS, generic fallback)
 NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
@@ -82,15 +88,23 @@ check-keys: ## CI check: fail if computed fingerprints differ from pins in $(ENV
 	"$(KEYS_SCRIPT)" strict
 
 # ================== Docker ==================
+#
+# Compose common build options and conditionally add --no-cache
+DOCKER_BUILD_OPTS_BASE := --pull --progress=plain
+ifeq ($(NO_CACHE),1)
+  DOCKER_BUILD_OPTS := $(DOCKER_BUILD_OPTS_BASE) --no-cache
+else
+  DOCKER_BUILD_OPTS := $(DOCKER_BUILD_OPTS_BASE)
+endif
+
 docker-build: ## Build the runtime image: $(IMAGE):$(TAG) from $(DOCKERFILE)
 	@$(assert_docker)
 	@$(call assert_file,$(DOCKERFILE))
 	@printf "$(YELLOW)Building $(IMAGE):$(TAG) with $(DOCKERFILE)...$(RESET)\n"
 	@DOCKER_BUILDKIT=1 docker build \
-		--pull \
-		--progress=plain \
+		$(DOCKER_BUILD_OPTS) \
 		-t "$(IMAGE):$(TAG)" \
-		-f "$(DOCKERFILE)" .
+		-f "$(DOCKERFILE)" $(DOCKER_CONTEXT)
 	@printf "$(GREEN)Built $(IMAGE):$(TAG)$(RESET)\n"
 
 docker-build-test: ## Build the test stage (runs bats at build-time) -> $(IMAGE):$(TEST_TAG); fails if bats fails
@@ -98,11 +112,10 @@ docker-build-test: ## Build the test stage (runs bats at build-time) -> $(IMAGE)
 	@$(call assert_file,$(DOCKERFILE))
 	@printf "$(YELLOW)Building test stage '$(TEST_STAGE)' as $(IMAGE):$(TEST_TAG)...$(RESET)\n"
 	@DOCKER_BUILDKIT=1 docker build \
-		--pull \
+		$(DOCKER_BUILD_OPTS) \
 		--target "$(TEST_STAGE)" \
-		--progress=plain \
 		-t "$(IMAGE):$(TEST_TAG)" \
-		-f "$(DOCKERFILE)" .
+		-f "$(DOCKERFILE)" $(DOCKER_CONTEXT)
 	@printf "$(GREEN)Test stage built: $(IMAGE):$(TEST_TAG)$(RESET)\n"
 
 docker-test: docker-build-test ## Build test stage then run bats in a disposable container; JUnit -> $(TEST_REPORT_DIR)
@@ -126,3 +139,4 @@ docker-test-exec: ## Run bats *inside an already-running* container $(CONTAINER_
 	@mkdir -p "$(TEST_REPORT_DIR)"
 	@docker cp "$(CONTAINER_NAME):/reports" "$(TEST_REPORT_DIR)" >/dev/null 2>&1 || true
 	@printf "$(GREEN)Tests complete. Reports copied to $(TEST_REPORT_DIR)/reports$(RESET)\n"
+

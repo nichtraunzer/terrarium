@@ -1,5 +1,5 @@
 
-## Refreshed: 2025-08-19T13:40:42Z (UTC)
+## Refreshed: 2025-08-20T07:54:46Z (UTC)
 # Sources:
 #  - HashiCorp: https://www.hashicorp.com/.well-known/pgp-key.txt
 #    Verified fingerprint documented: https://developer.hashicorp.com/well-architected-framework/operational-excellence/verify-hashicorp-binary
@@ -7,7 +7,7 @@
 #  - Node: curated keyring recommended by Node (fallback to allow-list)
 
 ENV HASHICORP_PGP_FPR=C874011F0AB405110D02105534365D9472D7468F \
-    AWS_CLI_PGP_URL="" \
+    AWS_CLI_PGP_URL="https://awscli.amazonaws.com/AWSCLIV2.asc" \
     AWS_CLI_PGP_FPR=FB5DB77FD5C118B80511ADA8A6310ACC4672475C \
     NODE_RELEASE_FPRS="\
     0912234647DD4B223F04152259EB1E31F56368C1 \
