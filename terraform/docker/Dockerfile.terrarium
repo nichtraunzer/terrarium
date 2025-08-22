@@ -12,11 +12,8 @@ ARG PYTHON_VERSION RUBY_VERSION BUNDLER_VERSION GEM_HOME
 ENV PYENV_ROOT=/opt/pyenv \
     RBENV_ROOT=/opt/rbenv \
     GEM_HOME=${GEM_HOME}
-# Put shims first so compilers/env see the right python/ruby
 ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:$PATH
 
-# Full toolchain + all -devel libs needed by CPython/Ruby & native gems
-# NOTE: don't install 'curl' here to avoid conflict with curl-minimal on EL9.
 RUN dnf -y update \
     && dnf -y install dnf-plugins-core \
     && dnf config-manager --set-enabled crb \
@@ -40,7 +37,7 @@ RUN umask 0002 \
     && ${PYENV_ROOT}/bin/pyenv global  ${PYTHON_VERSION} \
     && python --version && pip --version
 
-# ---- rbenv & Ruby + Bundler (single supported version) ----
+# ---- rbenv & Ruby + Bundler ----
 RUN git clone https://github.com/rbenv/rbenv.git ${RBENV_ROOT} \
     && git clone https://github.com/rbenv/ruby-build.git ${RBENV_ROOT}/plugins/ruby-build \
     && ${RBENV_ROOT}/bin/rbenv install ${RUBY_VERSION} \
@@ -66,8 +63,8 @@ ARG PYTHON_VERSION
 ARG GEM_HOME
 ARG BATS_CORE_VERSION
 
-# Tool versions (deprecated pins removed)
-ENV AGE_VERSION=1.2.1 \
+# Tool versions
+ENV AGE_VERSION=1.1.0 \
     AWS_CDK_VERSION=2.1024.0 \
     BUNDLER_VERSION=2.7.1 \
     CONSUL_VERSION=1.21.3 \
@@ -94,9 +91,126 @@ ENV AGE_VERSION=1.2.1 \
     YQ_VERSION=4.47.1 \
     ZOXIDE_VERSION=0.9.4
 
+# Fingerprints / key sources
+
+# ───────────────────────────────── Key sources & update playbook ───────────────────────────────
+# HashiCorp (signs *_SHA256SUMS and *_SHA256SUMS.sig on releases.hashicorp.com)
+#   • Canonical fingerprint is published on HashiCorp’s Security page:
+#       https://www.hashicorp.com/security  (look for the “PGP public key” section)
+#     Example current fingerprint (no spaces): C874011F0AB405110D02105534365D9472D7468F
+#   • Public key (ASCII armored) is served from the site’s well-known path:
+#       https://www.hashicorp.com/.well-known/pgp-key.txt
+#   • Deterministic fetch by fingerprint (alternate source):
+#       https://keys.openpgp.org/vks/v1/by-fingerprint/<FPR>
+#   Update steps:
+#     1. Fetch the key from both the .well-known URL and keys.openpgp.org (by fingerprint).
+#     2. Compute the fingerprint you fetched:
+#          gpg --batch --with-colons --import-options show-only --import pgp-key.txt \
+#             | awk -F: '/^fpr:/ {print $10; exit}'
+#     3. Compare to the Security page. If HashiCorp rotates keys, update HASHICORP_PGP_FPR below
+#        and commit a link to the rotation notice/release notes for traceability.
+#
+# AWS CLI v2 (zip installers are .sig-signed)
+#   • Public key file:
+#       https://awscli.amazonaws.com/AWSCLIV2.asc
+#   • Official docs show the key’s Key ID and fingerprint and how to verify signatures:
+#       https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html#v2-install-linux-validate
+#     As documented there, the current fingerprint is:
+#       FB5D B77F D5C1 18B8 0511 ADA8 A631 0ACC 4672 475C  (ID: A631 0ACC 4672 475C)
+#   Update steps:
+#     1. Download AWSCLIV2.asc from the AWS domain.
+#     2. Compute fingerprint (same gpg command as above) and confirm it matches the doc.
+#     3. If AWS rotates the key, pin the new fingerprint (optional) and reference the doc in the commit.
+#
+# Node.js (SHASUMS256.txt.sig is GPG-signed)
+#   • Preferred: use the curated, maintained keyring from the official nodejs/release-keys repo:
+#       https://github.com/nodejs/release-keys   (see README for the “gpg-only-active-keys” keyring)
+#   • Also documented: the “Release keys” section in the nodejs/node README (historical list):
+#       https://github.com/nodejs/node#release-keys
+#   Update steps:
+#     1. Periodically refresh the curated keyring from nodejs/release-keys (only-active set).
+#     2. If you keep explicit fingerprints, reconcile them with the Release keys list and retire old ones.
+#
+# General guidance
+#   • Prefer vendor-controlled sources (security/trust/install docs, .well-known paths).
+#   • If you must pull from a keyserver, use keys.openpgp.org by fingerprint (owner-verified email),
+#     not legacy SKS pools. Always PIN to a fingerprint you cross-checked on a vendor-controlled page.
+#   • Keep this comment updated when vendors rotate keys, and link to the official announcement.
+# ───────────────────────────────────────────────────────────────────────────────────────────────
+
+ENV HASHICORP_PGP_FPR=C874011F0AB405110D02105534365D9472D7468F \
+    AWS_CLI_PGP_URL="https://awscli.amazonaws.com/AWSCLIV2.asc" \
+    AWS_CLI_PGP_FPR=FB5DB77FD5C118B80511ADA8A6310ACC4672475C \
+    NODE_RELEASE_FPRS="\
+    0912234647DD4B223F04152259EB1E31F56368C1 \
+    0A178CD0FE03CB4F8780980A039F94E89826F891 \
+    0EFFE1BCEFD9C84E3D098152933B01F40B5CA946 \
+    108F52B48DB57BB0CC439B2997B01419BD92F80A \
+    114F43EE0176B71C7BC219DD50A3051F888C628D \
+    141F07595B7B3FFE74309A937405533BE57C7D57 \
+    1A17FA90D972256AB021D5654ED91D4DBD94604D \
+    1C050899334244A8AF75E53792EF661D867B9DFA \
+    22E11EACBD7E5A2466BFCC5A85E7AF54D684A75F \
+    265E38BB516DF5F945761AB7A39CBCAE8D765781 \
+    26FFD37528D0DE0E6D4D1C1A7341B15C070877AC \
+    2B2B9F0D620463DB3DE74C50DEA16371974031A5 \
+    3E63B94525C8D3A358D9D1258975BA8B6100C6B1 \
+    4104B1A1F784A8AE9E0C2A5105DE7928107F3DC0 \
+    484CEE51DD8C99D2A75D96972248F59603A1688D \
+    4BE2629F5FC285B8AB08AEDA919AC8A92C482931 \
+    4ED778F539E3634C779C87C6D7062848A1AB005C \
+    50CBD045680704B1B723693545F5EEBD813DAE8E \
+    5428A566947692736F60E5F6D3C55C2AAEC2131D \
+    56730D5401028683275BD23C23EFEFE93C4CFFFE \
+    59FE5759A5D617A2AB026435A250501325FA7297 \
+    5BE8A3F6C8A5C01D106C0AD820B1A390B168D356 \
+    61FC681DFB92A079F1685E77973F295594EC4689 \
+    65AEF21BAA3FE5766E3533221BDC911B8B6AED76 \
+    65E4D04ADAD1F47B0991DA7C996B7490EF1AEF97 \
+    699389B313B1D7C058A61713F320153C71827C7B \
+    6A8DE9DC075798602EFD8833EE3D476257C362B1 \
+    6E129FFB0180A9F444988C7F8CDB0392359F9454 \
+    71DCFD284A79C3B38668286BC97EC7A07EDE3FC1 \
+    74CD01639B02F3361D0918140D0792FB9ACAD426 \
+    74F12602B6F1C4E913FAA37AD3A89613643B6201 \
+    75C9C820E0B3C81082E0517FC06C369CA38E029B \
+    77984A986EBC2AA786BC0F66B01FBB92821C587A \
+    7937DFD2AB06298B2293C3187D33FF9D0246406D \
+    7C1F423FA1A6C8F34C1C9924900A296076CFC675 \
+    80E6380360B2E90F2C9A3AA6C0AB7FA4DC8F4063 \
+    890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4 \
+    8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600 \
+    93C7E9E91B49E432C2F75674B0A78B0A6C481CF6 \
+    94AE36675C464D64BAFA68DD7434390BDBE9B9C5 \
+    9554F04D7259F04124DE6B476D5A82AC7E37093B \
+    9FC51CEA112B1655FA9398E2E04111EEE1A956A5 \
+    A363A499291CBBC940DD62E41F10027AF002F8B0 \
+    A48C2BEE680E841632CD4E44F07496B3EB3C1762 \
+    A6023530FC53461FEC91F99C04CD3F2FDE079578 \
+    AB782490DA6DB0E39DEBBAB33F4049298959D8C2 \
+    B9AE9905FFD7803F25714661B63B535A4C206CA9 \
+    B9E2F5981AA6E0CD28160D9FF13993A75599653C \
+    C0D6248439F1D5604AAFFB4021D900FFDB233756 \
+    C2B25D9B4272DB29565BA87F3C7824F39A895758 \
+    C45CA36E926C99594C3A5A083049F7B98AED0C89 \
+    C4960C6DAA2AEBC352F3E5B8E140F61BC5979DCC \
+    C4F0DFFF4E8C1A8236409D08E73BC641CC11F4C8 \
+    C6B38CFEAC5757BDE31202BC12DAF9ECEDE8123E \
+    C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C \
+    CC68F5A3106FF448322E48ED27F5E38D5B0A215F \
+    D9DB73DBB228C6B5636D9B49926EC77D21D4BD24 \
+    DD792F5973C6DE52C432CBDAC77ABFA00DDBF2B7 \
+    DD8F2338BAE7501E3DD5AC78C273792F7D83545D \
+    EDC5FCAE2317BA6060FDB92C4708964F8085DFE7 \
+    F097C42A7071A2F8E037AEF84FEC3ECC9B596CE2 \
+    FD3A5288F042B6850C66B31F09FE44734EB7990E \
+    FD95EE40161592AC9C1FCB48B2CCB982D6DCC25D \
+    "
+
+
 ENV PYENV_ROOT=/opt/pyenv
 
-# Stable PATH for login/non-login shells
+# Stable PATH for login/non‑login shells
 ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
 ENV HOME=/home/terrarium
@@ -104,14 +218,13 @@ ENV HOME=/home/terrarium
 RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVARIANT}, \
     building for ${TARGETPLATFORM}, ${TARGETOS}, ${TARGETARCH}, ${TARGETVARIANT}."
 
-# OS update
+# OS update + dnf hardening
 RUN . /etc/os-release && echo "Base image: $PRETTY_NAME" \
     && dnf -y update \
     && dnf clean all
-# Harden dnf against flaky mirrors / slow connections
 RUN printf '\nmax_parallel_downloads=10\nretries=10\n' >> /etc/dnf/dnf.conf
 
-# Enable CRB for UBI + EPEL; get jq/parallel
+# Base utils
 RUN dnf -y install dnf-plugins-core \
     && dnf config-manager --set-enabled ubi-9-codeready-builder-rpms \
     && dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
@@ -119,26 +232,181 @@ RUN dnf -y install dnf-plugins-core \
     && jq --version \
     && dnf clean all
 
-# Runtime & build tools that DO exist in UBI repos
 ENV RUNTIME_PKGS="gcc gcc-c++ make git coreutils zlib zlib-devel unzip wget \
     bzip2 bzip2-devel xz xz-devel sqlite sqlite-devel libffi libffi-devel \
     openssl openssl-devel libuuid libyaml tk gdbm tar diffutils \
-    autoconf automake libtool procps which sudo"
+    autoconf automake libtool procps which sudo gnupg2"
 
-# IMPORTANT: UBI ships coreutils-single; swap to full coreutils before installing others
 RUN set -x \
     && (dnf -q list installed coreutils-single >/dev/null 2>&1 && dnf -y swap coreutils-single coreutils || dnf -y install coreutils --allowerasing) \
     && dnf -y install $RUNTIME_PKGS \
     && dnf clean all
 
-# Robust downloader with retries for all big external fetches
+# Robust downloader with retries
 RUN cat >/usr/local/bin/fetch <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-curl --fail --silent --show-error --location \
-     --retry 5 --retry-all-errors --retry-delay 2 "$@"
+: "${FETCH_RETRIES:=5}"
+: "${FETCH_RETRY_DELAY:=2}"
+: "${FETCH_CONNECT_TIMEOUT:=20}"
+: "${FETCH_MAX_TIME:=900}"
+exec curl --fail --silent --show-error --location \
+          --retry "$FETCH_RETRIES" --retry-connrefused \
+          --retry-delay "$FETCH_RETRY_DELAY" \
+          --connect-timeout "$FETCH_CONNECT_TIMEOUT" \
+          --max-time "$FETCH_MAX_TIME" \
+          "$@"
 EOF
 RUN chmod +x /usr/local/bin/fetch
+
+# Verification helpers
+RUN cat >/usr/local/bin/verify_gpg_signed_checksums <<'EOF' \
+    && cat >/usr/local/bin/verify_gpg_detached <<'EOF2' \
+    && cat >/usr/local/bin/verify_sha256_from_url <<'EOF3' \
+    && cat >/usr/local/bin/verify_sha256_from_checksums <<'EOF4' \
+    && chmod +x /usr/local/bin/verify_*
+#!/usr/bin/env bash
+# verify_gpg_signed_checksums <keyring.gpg> <checksums-url> <sig-url> <artifact-file>
+set -euo pipefail
+keyring="$1"; sums_url="$2"; sig_url="$3"; file="$4"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+fetch -o "$tmp/sums.txt" "$sums_url"
+fetch -o "$tmp/sums.txt.sig" "$sig_url"
+gpg --batch ${GNUPGHOME:+--homedir "$GNUPGHOME"} --no-default-keyring --keyring "$keyring" --verify "$tmp/sums.txt.sig" "$tmp/sums.txt" >/dev/null
+
+# extract sha256 for file (supports formats with/without leading '*')
+expected="$(grep -E "([[:space:]]|[*])$(basename "$file")$" "$tmp/sums.txt" | awk '{print $1}')"
+[ -n "$expected" ] || { echo "checksum for $(basename "$file") not found"; exit 1; }
+echo "${expected}  ${file}" | sha256sum -c -
+EOF
+#!/usr/bin/env bash
+# verify_gpg_detached <keyring.gpg> <artifact-file> <sig-url>
+set -euo pipefail
+keyring="$1"; file="$2"; sig_url="$3"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+fetch -o "$tmp/file.sig" "$sig_url"
+gpg --batch ${GNUPGHOME:+--homedir "$GNUPGHOME"} --no-default-keyring --keyring "$keyring" --verify "$tmp/file.sig" "$file" >/dev/null
+
+EOF2
+#!/usr/bin/env bash
+# verify_sha256_from_url <sha256-url> <artifact-file>  (supports "hex" or "hex  filename")
+set -euo pipefail
+sha_url="$1"; file="$2"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+fetch -o "$tmp/sha256" "$sha_url"
+sum="$(awk '{print $1}' "$tmp/sha256" | tr -d '\n\r')"
+echo "${sum}  ${file}" | sha256sum -c -
+EOF3
+#!/usr/bin/env bash
+# verify_sha256_from_checksums <checksums-url> <artifact-file>
+set -euo pipefail
+sums_url="$1"; file="$2"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+fetch -o "$tmp/checksums.txt" "$sums_url"
+expected="$(grep -E "([[:space:]]|[*])$(basename "$file")$" "$tmp/checksums.txt" | awk '{print $1}')"
+[ -n "$expected" ] || { echo "checksum for $(basename "$file") not found in $sums_url"; exit 1; }
+echo "${expected}  ${file}" | sha256sum -c -
+EOF4
+
+# Keyrings (deterministic bootstrap)
+RUN install -d -m 0755 /opt/keys/gpg /opt/keys/tmp
+
+ENV GNUPGHOME=/opt/keys/gnupg
+RUN install -d -m 0700 "$GNUPGHOME"
+
+# HashiCorp security key (fetch by fingerprint; fallback to .well-known) ─────
+RUN set -eux; \
+    file=/opt/keys/hashicorp.asc; \
+    tmpring=/opt/keys/tmp/hashicorp.kbx; \
+    trustring=/opt/keys/gpg/hashicorp.gpg; \
+    # 1) Try the deterministic by-fingerprint endpoint
+    if ! fetch -o "$file" "https://keys.openpgp.org/vks/v1/by-fingerprint/${HASHICORP_PGP_FPR}"; then \
+    echo "INFO: keys.openpgp.org unavailable; falling back to hashicorp.com .well-known"; \
+    fetch -o "$file" https://www.hashicorp.com/.well-known/pgp-key.txt; \
+    fi; \
+    # Import to a temp keyring, then verify the pinned fingerprint is present
+    rm -f "$tmpring"; \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring --keyring "$tmpring" --import "$file"; \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring --keyring "$tmpring" \
+    --with-colons --fingerprint | awk -F: '/^fpr:/{print $10}' | tee /opt/keys/tmp/hashicorp.fprs; \
+    grep -Fx "${HASHICORP_PGP_FPR}" /opt/keys/tmp/hashicorp.fprs; \
+    # Move the verified ring into the trusted location
+    cp -f "$tmpring" "$trustring"
+
+
+# Node.js release keys — prefer curated keyring; fallback to per-fingerprint imports
+RUN set -eux; \
+    if fetch -o /opt/keys/gpg/node.kbx \
+    https://github.com/nodejs/release-keys/raw/HEAD/gpg/pubring.kbx; then \
+    echo "INFO: using curated Node.js release keyring"; \
+    else \
+    echo "WARN: curated keyring unavailable, falling back to importing fingerprints"; \
+    for f in $NODE_RELEASE_FPRS; do \
+    # Try keys.openpgp.org first; if 404, fall back to Ubuntu keyserver
+    if ! fetch -o "/opt/keys/tmp/${f}.asc" "https://keys.openpgp.org/vks/v1/by-fingerprint/${f}"; then \
+    fetch -o "/opt/keys/tmp/${f}.asc" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${f}"; \
+    fi; \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring /opt/keys/gpg/node.gpg --import "/opt/keys/tmp/${f}.asc" || true; \
+    done; \
+    fi
+
+
+# AWS CLI release key — fetch from AWS first; fallback to keyservers; import into KBX ring
+RUN set -eux; \
+    fpr="${AWS_CLI_PGP_FPR}"; \
+    out=/opt/keys/awscli.asc; \
+    ring=/opt/keys/gpg/awscli.kbx; \
+    # Prefer the vendor‑hosted key; fallback if overridden or temporarily unavailable
+    if [ -n "${AWS_CLI_PGP_URL}" ]; then \
+    fetch -o "$out" "$AWS_CLI_PGP_URL" || \
+    ( echo "WARN: ${AWS_CLI_PGP_URL} failed, falling back to keyservers"; \
+    fetch -o "$out" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${fpr}" || \
+    fetch -o "$out" "https://keys.openpgp.org/vks/v1/by-fingerprint/${fpr}" ); \
+    else \
+    fetch -o "$out" "https://awscli.amazonaws.com/AWSCLIV2.asc" || \
+    ( echo "WARN: https://awscli.amazonaws.com/AWSCLIV2.asc failed, falling back to keyservers"; \
+    fetch -o "$out" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${fpr}" || \
+    fetch -o "$out" "https://keys.openpgp.org/vks/v1/by-fingerprint/${fpr}" ); \
+    fi; \
+    got="$(gpg --batch --homedir "$GNUPGHOME" --quiet --with-colons \
+    --import-options show-only --import "$out" \
+    | awk -F: '/^fpr:/{print $10; exit}')"; \
+    [ "$got" = "$fpr" ]; \
+    rm -f "$ring"; \
+    gpg --batch --homedir "$GNUPGHOME" --quiet --no-default-keyring \
+    --keyring "$ring" --import "$out"
+
+
+
+
+# Show imported keys (optional, quiet)
+RUN gpg --batch --homedir "$GNUPGHOME" --no-default-keyring --keyring /opt/keys/gpg/hashicorp.gpg \
+    --list-keys --with-fingerprint --with-colons | awk -F: '/^fpr:/{print "hashicorp:",$10}'
+RUN if [ -f /opt/keys/gpg/awscli.kbx ]; then \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring /opt/keys/gpg/awscli.kbx \
+    --list-keys --with-fingerprint --with-colons \
+    | awk -F: '/^fpr:/{print "aws:",$10}'; \
+    else \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring /opt/keys/gpg/awscli.gpg \
+    --list-keys --with-fingerprint --with-colons \
+    | awk -F: '/^fpr:/{print "aws:",$10}'; \
+    fi
+
+RUN if [ -f /opt/keys/gpg/node.kbx ]; then \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring /opt/keys/gpg/node.kbx \
+    --list-keys --with-fingerprint --with-colons \
+    | awk -F: '/^fpr:/{print "node:",$10}'; \
+    else \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring /opt/keys/gpg/node.gpg \
+    --list-keys --with-fingerprint --with-colons \
+    | awk -F: '/^fpr:/{print "node:",$10}'; \
+    fi
+
 
 # ---- Bring in languages, gems, and xorriso compiled on Rocky ----
 COPY --from=buildlang /opt/pyenv /opt/pyenv
@@ -149,7 +417,7 @@ COPY --from=buildlang /opt/bundle /opt/bundle
 COPY Gemfile Gemfile.lock /opt/terrarium-gems/
 RUN chmod -R a+rX /opt/terrarium-gems
 
-# Ensure /opt/bundle matches /opt/terrarium-gems/Gemfile.lock (handles cache drift)
+# Ensure /opt/bundle matches /opt/terrarium-gems/Gemfile.lock
 ENV BUNDLE_SILENCE_ROOT_WARNING=1
 RUN set -eux; \
     export RBENV_VERSION="${RUBY_VERSION}" \
@@ -159,7 +427,7 @@ RUN set -eux; \
     bundle check || bundle install --jobs=6 --retry=3; \
     bundle clean --force
 
-# xorriso + its runtime libs (EPEL/UBI does not provide xorriso)
+# xorriso (from buildlang)
 COPY --from=buildlang /usr/bin/xorriso /usr/bin/xorriso
 COPY --from=buildlang /usr/lib64/libisoburn.so.* /usr/lib64/
 COPY --from=buildlang /usr/lib64/libisofs.so.*  /usr/lib64/
@@ -169,51 +437,66 @@ RUN /sbin/ldconfig || /usr/sbin/ldconfig || true
 # ─── uv – ultra-fast dependency manager & Python launcher ───────────────────
 RUN fetch https://astral.sh/uv/install.sh | bash && uv --version
 
-# Configure PIP SSL validation (pyenv’s pip)
+# Configure PIP SSL validation
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
     && pip config list
 
-# ─── Python user-level libraries via uv ─────────────────────────────────────
+# ─── Python user‑level libraries via uv ─────────────────────────────────────
 COPY pyproject.toml /tmp/pyproject.toml
 COPY uv.lock       /tmp/uv.lock
 RUN uv sync --directory /tmp --no-managed-python --frozen
 
-# ─── Azure CLI (install globally; avoids uv lockfile writes during tests) ───
+# ─── Azure CLI (signed repo) ────────────────────────────────────────────────
 RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc \
     && dnf -y install https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm \
     && dnf -y install azure-cli \
     && az --version \
     && dnf clean all
 
-# Install awscli2
-RUN TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && fetch -o awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-${TARGETOS}-${TARGETARCH_SYNONYM}.zip" \
-    && unzip -qq awscliv2.zip \
+# AWS CLI (verify detached signature with AWS keyring)
+RUN ARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
+    && FILE="awscliv2.zip" \
+    && URL="https://awscli.amazonaws.com/awscli-exe-${TARGETOS}-${ARCH_SYNONYM}.zip" \
+    && fetch -o "$FILE" "$URL" \
+    && AWS_RING=$([ -f /opt/keys/gpg/awscli.kbx ] && echo /opt/keys/gpg/awscli.kbx || echo /opt/keys/gpg/awscli.gpg) \
+    && verify_gpg_detached "$AWS_RING" "$FILE" "${URL}.sig" \
+    && unzip -qq "$FILE" \
     && ./aws/install \
-    && rm -rf aws awscliv2.zip \
+    && rm -rf aws "$FILE" \
     && /usr/local/bin/aws --version
 
-# Install AWS SAM CLI (zip for amd64, pip for arm64)
+# AWS SAM (x86_64: try detached sig; arm64: pip)
 RUN if [ "x${TARGETARCH}" = "xamd64" ]; then \
-    TARGETARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "use_pip"); \
-    fetch -o awssam.zip "https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-${TARGETOS}-${TARGETARCH_SYNONYM}.zip"; \
-    unzip -qq -d awssam awssam.zip && ./awssam/install && rm -rf awssam awssam.zip; \
+    FILE="aws-sam-cli-${TARGETOS}-x86_64.zip"; \
+    BASE="https://github.com/aws/aws-sam-cli/releases/latest/download"; \
+    fetch -o "$FILE" "${BASE}/${FILE}"; \
+    AWS_RING=$([ -f /opt/keys/gpg/awscli.kbx ] && echo /opt/keys/gpg/awscli.kbx || echo /opt/keys/gpg/awscli.gpg); \
+    ( verify_gpg_detached "$AWS_RING" "$FILE" "${BASE}/${FILE}.sig" || echo "WARN: SAM signature not found; continuing" ); \
+    unzip -qq -d awssam "$FILE" && ./awssam/install && rm -rf awssam "$FILE"; \
     else \
     pip install --no-cache-dir aws-sam-cli; \
     fi \
     && sam --version
 
-# Install Node + AWS CDK
-RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
-    && fetch -O "https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz" \
-    && xzcat node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz | tar xpf - -C /opt/ \
-    && mv /opt/node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT} /opt/node \
-    && rm -f node-v${NODEJS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT}.tar.xz \
+
+# Node.js + signed SHASUMS verification + AWS CDK
+RUN ARCH_NODE=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
+    && VER="${NODEJS_VERSION}" \
+    && BASE="https://nodejs.org/dist/v${VER}" \
+    && FILE="node-v${VER}-${TARGETOS}-${ARCH_NODE}.tar.xz" \
+    && fetch -o "$FILE" "${BASE}/${FILE}" \
+    && KEYRING=$([ -f /opt/keys/gpg/node.kbx ] && echo /opt/keys/gpg/node.kbx || echo /opt/keys/gpg/node.gpg) \
+    && verify_gpg_signed_checksums "$KEYRING" \
+    "${BASE}/SHASUMS256.txt" "${BASE}/SHASUMS256.txt.sig" "$FILE" \
+    && xzcat "$FILE" | tar xpf - -C /opt/ \
+    && mv "/opt/node-v${VER}-${TARGETOS}-${ARCH_NODE}" /opt/node \
+    && rm -f "$FILE" \
     && /opt/node/bin/npm install -g aws-cdk@${AWS_CDK_VERSION} \
     && chown -R 1001:0 /opt/node && chmod +x /opt/node/bin/* \
     && node --version && cdk --version
 
-# Install tenv + Terraform (single supported version)
+
+# tenv + Terraform (single supported version)
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && dnf -y install "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm" \
     && tenv tf install ${TERRAFORM_VERSION} \
@@ -221,9 +504,8 @@ RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") 
     && terraform -version \
     && chown -R 1001:0 "${TENV_ROOT}" && chmod -R 2775 "${TENV_ROOT}"
 
-# Safe tenv profile: prefer update-path if available, otherwise init
+# Safe tenv profile
 RUN cat > /etc/profile.d/tenv.sh <<'EOF'
-# Safe tenv PATH integration. Never clobber PATH.
 if command -v tenv >/dev/null 2>&1; then
   if tenv --help 2>&1 | grep -q 'update-path'; then
     TENV_NEW_PATH="$((/usr/bin/tenv update-path) 2>/dev/null || true)"
@@ -237,20 +519,104 @@ fi
 export PATH
 EOF
 
-# Packer
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && fetch -o /tmp/packer.zip "https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip -qq /tmp/packer.zip -d /usr/local/bin packer \
-    && rm -f /tmp/packer.zip \
+# HashiCorp tools — verify signed checksums
+RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && VER="${PACKER_VERSION}" && BASE="https://releases.hashicorp.com/packer/${VER}" \
+    && FILE="/tmp/packer_${VER}_${TARGETOS}_${ARCH}.zip" \
+    && fetch -o "$FILE" "${BASE}/packer_${VER}_${TARGETOS}_${ARCH}.zip" \
+    && verify_gpg_signed_checksums /opt/keys/gpg/hashicorp.gpg "${BASE}/packer_${VER}_SHA256SUMS" "${BASE}/packer_${VER}_SHA256SUMS.sig" "$FILE" \
+    && unzip -qq "$FILE" -d /usr/local/bin packer \
+    && rm -f "$FILE" \
     && packer --version
 
-# Consul
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && fetch -o /tmp/consul.zip "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip -qq /tmp/consul.zip -d /usr/local/bin consul \
-    && rm -f /tmp/consul.zip \
-    && chmod +x /usr/local/bin/consul \
-    && /usr/local/bin/consul -version
+RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && VER="${CONSUL_VERSION}" && BASE="https://releases.hashicorp.com/consul/${VER}" \
+    && FILE="/tmp/consul_${VER}_${TARGETOS}_${ARCH}.zip" \
+    && fetch -o "$FILE" "${BASE}/consul_${VER}_${TARGETOS}_${ARCH}.zip" \
+    && verify_gpg_signed_checksums /opt/keys/gpg/hashicorp.gpg "${BASE}/consul_${VER}_SHA256SUMS" "${BASE}/consul_${VER}_SHA256SUMS.sig" "$FILE" \
+    && unzip -qq "$FILE" -d /usr/local/bin consul \
+    && rm -f "$FILE" \
+    && consul -version
+
+# terraform-config-inspect — build from source (upstream way)
+ARG TERRAFORM_CONFIG_INSPECT_VERSION=latest
+
+# starship & zoxide (left as script installers; pin versions already)
+RUN fetch -o /tmp/starship.sh https://starship.rs/install.sh \
+    && chmod +x /tmp/starship.sh \
+    && /tmp/starship.sh --yes \
+    && rm -f /tmp/starship.sh \
+    && fetch -o /tmp/zoxide.sh https://webinstall.dev/zoxide \
+    && chmod +x /tmp/zoxide.sh \
+    && /tmp/zoxide.sh && rm -f /tmp/zoxide.sh
+
+# Go toolchain + go-task (robust checksum + JSON fallback)
+RUN set -eux; \
+    ARCH=$([ "$TARGETARCH" = "amd64" ] && echo amd64 || echo arm64); \
+    TARBALL="go${GO_VERSION}.${TARGETOS}-${ARCH}.tar.gz"; \
+    BASE="https://go.dev/dl"; \
+    fetch -o "/tmp/${TARBALL}" "${BASE}/${TARBALL}"; \
+    # First try the straightforward .sha256 file
+    if ! verify_sha256_from_url "${BASE}/${TARBALL}.sha256" "/tmp/${TARBALL}"; then \
+    echo "WARN: ${TARBALL}.sha256 not usable; falling back to Go JSON index"; \
+    fetch -o /tmp/go.json "${BASE}/?mode=json&include=all"; \
+    SUM="$(jq -r --arg v "go${GO_VERSION}" --arg os "${TARGETOS}" --arg arch "${ARCH}" \
+    '.[] | select(.version==$v) \
+    | .files[] | select(.kind=="archive" and .os==$os and .arch==$arch) \
+    | .sha256' /tmp/go.json)"; \
+    [ -n "$SUM" ] || { echo "ERROR: could not obtain checksum for ${TARBALL}"; exit 1; }; \
+    echo "${SUM}  /tmp/${TARBALL}" | sha256sum -c -; \
+    fi; \
+    tar -C /usr/local -xzf "/tmp/${TARBALL}"; \
+    rm -f "/tmp/${TARBALL}" /tmp/go.json || true
+ENV PATH=$PATH:/usr/local/go/bin
+
+# go-task
+RUN fetch https://taskfile.dev/install.sh | sh -s -- -d v${TASK_VERSION} \
+    && task --version
+
+
+
+# sops + age (verify official tarball if available; otherwise fall back to go install)
+RUN set -eux; \
+    ARCH_SHORT=$([[ "$TARGETARCH" = "amd64" ]] && echo "amd64" || echo "arm64"); \
+    ARCH_RPM=$([[ "$TARGETARCH" = "amd64" ]] && echo "x86_64" || echo "aarch64"); \
+    dnf -y install "https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${ARCH_RPM}.rpm"; \
+    BASE="https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}"; \
+    tmp="$(mktemp -d)"; \
+    SUMS_URL=""; \
+    for cand in "checksums.txt" "age-v${AGE_VERSION}-checksums.txt" "SHA256SUMS"; do \
+    if fetch -o "$tmp/sums.txt" "${BASE}/${cand}"; then SUMS_URL="${BASE}/${cand}"; break; fi; \
+    done; \
+    if [ -z "$SUMS_URL" ]; then \
+    API="https://api.github.com/repos/FiloSottile/age/releases/tags/v${AGE_VERSION}"; \
+    if [ -n "${GITHUB_TOKEN:-}" ]; then AUTH_HEADER="-H Authorization: Bearer ${GITHUB_TOKEN}"; else AUTH_HEADER=""; fi; \
+    if fetch $AUTH_HEADER -H "Accept: application/vnd.github+json" -o "$tmp/release.json" "$API"; then \
+    SUMS_URL="$(jq -r '[.assets[] | select((.name|test("checksums|SHA256";"i")))][0].browser_download_url // empty' "$tmp/release.json")" || true; \
+    fi; \
+    fi; \
+    if [ -n "$SUMS_URL" ]; then \
+    FNAME="$(awk '{print $2}' "$tmp/sums.txt" | grep -E "age-v${AGE_VERSION}-linux-${ARCH_SHORT}\\.tar\\.(gz|xz)$" | head -n1)"; \
+    if [ -z "$FNAME" ] && [ -f "$tmp/release.json" ]; then \
+    FNAME="$(jq -r --arg arch "${ARCH_SHORT}" '.assets[].name | select(test("^age-v[0-9.]+-linux-\\($arch)\\.(tar\\.gz|tar\\.xz)$"))' "$tmp/release.json" | head -n1)"; \
+    fi; \
+    if [ -n "$FNAME" ]; then \
+    fetch -o "$tmp/$FNAME" "${BASE}/${FNAME}" || fetch -o "$tmp/$FNAME" "$(dirname "$SUMS_URL")/$FNAME"; \
+    verify_sha256_from_checksums "$SUMS_URL" "$tmp/$FNAME"; \
+    case "$FNAME" in \
+    *.tar.gz) tar -zxpf "$tmp/$FNAME" --strip-components=1 -C /usr/local/bin age/age age/age-keygen ;; \
+    *.tar.xz) tar -Jxpf "$tmp/$FNAME" --strip-components=1 -C /usr/local/bin age/age age/age-keygen ;; \
+    esac; \
+    rm -rf "$tmp"; \
+    /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all; \
+    exit 0; \
+    fi; \
+    fi; \
+    echo "WARN: No official age tarball + checksums for v${AGE_VERSION}; falling back to Go build"; \
+    GOBIN=/usr/local/bin go install filippo.io/age/cmd/age@v${AGE_VERSION} || GOBIN=/usr/local/bin go install filippo.io/age/cmd/age@latest; \
+    GOBIN=/usr/local/bin go install filippo.io/age/cmd/age-keygen@v${AGE_VERSION} || GOBIN=/usr/local/bin go install filippo.io/age/cmd/age-keygen@latest; \
+    /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all
+
 
 # terraform-config-inspect (support "latest" tag)
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64"); \
@@ -268,6 +634,32 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && chmod 755 /usr/local/bin/terraform-config-inspect \
     && /usr/local/bin/terraform-config-inspect
 
+# yq
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && fetch -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2}" \
+    && chmod +x /usr/local/bin/yq \
+    && /usr/local/bin/yq --version
+
+# kubectl — verify sha256 file
+RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && VER="v${KUBECTL_VERSION}" \
+    && URL="https://dl.k8s.io/release/${VER}/bin/linux/${ARCH}/kubectl" \
+    && fetch -o /usr/local/bin/kubectl "$URL" \
+    && chmod +x /usr/local/bin/kubectl \
+    && verify_sha256_from_url "${URL}.sha256" "/usr/local/bin/kubectl" \
+    && kubectl version --client=true
+
+# helm — verify sha256sum file
+RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && VER="v${HELM_VERSION}" \
+    && FILE="/tmp/helm-${VER}-linux-${ARCH}.tar.gz" \
+    && BASE="https://get.helm.sh" \
+    && fetch -o "$FILE" "${BASE}/helm-${VER}-linux-${ARCH}.tar.gz" \
+    && verify_sha256_from_url "${BASE}/helm-${VER}-linux-${ARCH}.tar.gz.sha256sum" "$FILE" \
+    && tar -zxvf "$FILE" --strip-components=1 -C /usr/local/bin "linux-${ARCH}/helm" \
+    && rm -f "$FILE" \
+    && helm version
+
 # Terraform Docs
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && fetch -o /tmp/terraform-docs.tar.gz "https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
@@ -276,11 +668,15 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && chmod +x /usr/local/bin/terraform-docs \
     && /usr/local/bin/terraform-docs --help
 
-# tflint
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && fetch -o /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TARGETARCH_SYNONYM_SHORT2}.zip" \
-    && unzip -qq /tmp/tflint.zip -d /usr/local/bin \
-    && rm -f /tmp/tflint.zip \
+
+# tflint — verify from checksums.txt
+RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && BASE="https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}" \
+    && FILE="/tmp/tflint_linux_${ARCH}.zip" \
+    && fetch -o "$FILE" "${BASE}/tflint_linux_${ARCH}.zip" \
+    && verify_sha256_from_checksums "${BASE}/checksums.txt" "$FILE" \
+    && unzip -qq "$FILE" -d /usr/local/bin \
+    && rm -f "$FILE" \
     && tflint --version
 
 # tfsec
@@ -290,58 +686,13 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && chmod +x /usr/local/bin/tfsec \
     && tfsec --version
 
-# sops + age
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
-    && dnf -y install "https://github.com/mozilla/sops/releases/download/v${SOPS_VERSION}/sops-${SOPS_VERSION}-1.${TARGETARCH_SYNONYM_SHORT3}.rpm" \
-    && fetch -o /tmp/age.tar.gz "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
-    && tar zxpf /tmp/age.tar.gz --strip-components=1 -C /usr/local/bin age/age age/age-keygen \
-    && rm -f /tmp/age.tar.gz \
-    && /usr/bin/sops --version \
-    && /usr/local/bin/age --version \
-    && dnf clean all
-
-# starship & zoxide
-RUN fetch -o /tmp/starship.sh https://starship.rs/install.sh \
-    && chmod +x /tmp/starship.sh \
-    && /tmp/starship.sh --yes \
-    && rm -f /tmp/starship.sh \
-    && fetch -o /tmp/zoxide.sh https://webinstall.dev/zoxide \
-    && chmod +x /tmp/zoxide.sh \
-    && /tmp/zoxide.sh && rm -f /tmp/zoxide.sh
-
-# Go (toolchain tarball) + go-task
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && fetch -o /tmp/go.tar.gz "https://golang.org/dl/go${GO_VERSION}.${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz && rm -f /tmp/go.tar.gz
-ENV PATH=$PATH:/usr/local/go/bin
-RUN fetch https://taskfile.dev/install.sh | sh -s -- -d v${TASK_VERSION} \
-    && task --version
-
-# yq
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && fetch -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2}" \
-    && chmod +x /usr/local/bin/yq \
-    && /usr/local/bin/yq --version
-
-# kubectl
-RUN curl -fsSLo /usr/local/bin/kubectl \
-    https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl \
-    && chmod +x /usr/local/bin/kubectl \
-    && kubectl version --client=true
-
-# helm
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && curl -fsSLo /tmp/helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
-    && tar -zxvf /tmp/helm.tar.gz --strip-components=1 -C /usr/local/bin linux-${TARGETARCH_SYNONYM_SHORT2}/helm \
-    && rm -f /tmp/helm.tar.gz \
-    && helm version
-
 # Ownerships & dirs
 RUN chown -R 1001:0 ${HOME} && chmod -R g+rw ${HOME} \
     && mkdir -p ${GEM_HOME} && chmod 2770 ${GEM_HOME} \
     && chown -R 1001:0 ${GEM_HOME} && chmod -R g+rw ${GEM_HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
+
+RUN dnf -y install perl-IPC-Cmd && dnf clean all
 
 # ---- Kitchen & Cinc wrappers (MANDATORY) -----------------------------------
 RUN install -d -m 0755 /usr/local/bin
@@ -364,7 +715,7 @@ exec /opt/rbenv/shims/bundle exec cinc-auditor "$@"
 EOF
 RUN chmod +x /usr/local/bin/cinc-auditor
 
-# Smoke check that both wrappers work at build time
+# Smoke check
 RUN RBENV_VERSION=${RUBY_VERSION} \
     BUNDLE_GEMFILE=/opt/terrarium-gems/Gemfile \
     BUNDLE_PATH=${GEM_HOME} \
