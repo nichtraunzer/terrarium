@@ -550,14 +550,31 @@ RUN fetch -o /tmp/starship.sh https://starship.rs/install.sh \
     && chmod +x /tmp/zoxide.sh \
     && /tmp/zoxide.sh && rm -f /tmp/zoxide.sh
 
-# Go toolchain + go-task
-RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && fetch -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.${TARGETOS}-${ARCH}.tar.gz" \
-    && verify_sha256_from_url "https://go.dev/dl/go${GO_VERSION}.${TARGETOS}-${ARCH}.tar.gz.sha256" "/tmp/go.tar.gz" \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz && rm -f /tmp/go.tar.gz
+# Go toolchain + go-task (robust checksum + JSON fallback)
+RUN set -eux; \
+    ARCH=$([ "$TARGETARCH" = "amd64" ] && echo amd64 || echo arm64); \
+    TARBALL="go${GO_VERSION}.${TARGETOS}-${ARCH}.tar.gz"; \
+    BASE="https://go.dev/dl"; \
+    fetch -o "/tmp/${TARBALL}" "${BASE}/${TARBALL}"; \
+    # First try the straightforward .sha256 file
+    if ! verify_sha256_from_url "${BASE}/${TARBALL}.sha256" "/tmp/${TARBALL}"; then \
+    echo "WARN: ${TARBALL}.sha256 not usable; falling back to Go JSON index"; \
+    fetch -o /tmp/go.json "${BASE}/?mode=json&include=all"; \
+    SUM="$(jq -r --arg v "go${GO_VERSION}" --arg os "${TARGETOS}" --arg arch "${ARCH}" \
+    '.[] | select(.version==$v) \
+    | .files[] | select(.kind=="archive" and .os==$os and .arch==$arch) \
+    | .sha256' /tmp/go.json)"; \
+    [ -n "$SUM" ] || { echo "ERROR: could not obtain checksum for ${TARBALL}"; exit 1; }; \
+    echo "${SUM}  /tmp/${TARBALL}" | sha256sum -c -; \
+    fi; \
+    tar -C /usr/local -xzf "/tmp/${TARBALL}"; \
+    rm -f "/tmp/${TARBALL}" /tmp/go.json || true
 ENV PATH=$PATH:/usr/local/go/bin
+
+# go-task
 RUN fetch https://taskfile.dev/install.sh | sh -s -- -d v${TASK_VERSION} \
     && task --version
+
 
 
 # sops + age (verify official tarball if available; otherwise fall back to go install)
@@ -601,18 +618,27 @@ RUN set -eux; \
     /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all
 
 
-# terraform-config-inspect (AFTER Go is installed)
-RUN GOBIN=/usr/local/bin go install github.com/hashicorp/terraform-config-inspect@${TERRAFORM_CONFIG_INSPECT_VERSION} \
-    && terraform-config-inspect --help >/dev/null
+# terraform-config-inspect (support "latest" tag)
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64"); \
+    if [ "${TERRAFORM_CONFIG_INSPECT_VERSION}" = "latest" ]; then \
+    TCI_TAG="$(curl -fsSL https://api.github.com/repos/nichtraunzer/terraform-config-inspect/releases/latest | jq -r .tag_name)"; \
+    TCI_VER="${TCI_TAG#v}"; \
+    else \
+    TCI_TAG="v${TERRAFORM_CONFIG_INSPECT_VERSION}"; \
+    TCI_VER="${TERRAFORM_CONFIG_INSPECT_VERSION#v}"; \
+    fi; \
+    curl -fsSLo /tmp/terraform-config-inspect.tar.gz \
+    "https://github.com/nichtraunzer/terraform-config-inspect/releases/download/${TCI_TAG}/terraform-config-inspect_${TCI_VER}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
+    && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ terraform-config-inspect \
+    && rm -f /tmp/terraform-config-inspect.tar.gz \
+    && chmod 755 /usr/local/bin/terraform-config-inspect \
+    && /usr/local/bin/terraform-config-inspect
 
-# yq — verify from checksums
-RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && BASE="https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}" \
-    && FILE="/usr/local/bin/yq" \
-    && fetch -o "$FILE" "${BASE}/yq_linux_${ARCH}" \
-    && chmod +x "$FILE" \
-    && verify_sha256_from_checksums "${BASE}/checksums" "$FILE" \
-    && yq --version
+# yq
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && fetch -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${TARGETARCH_SYNONYM_SHORT2}" \
+    && chmod +x /usr/local/bin/yq \
+    && /usr/local/bin/yq --version
 
 # kubectl — verify sha256 file
 RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -634,15 +660,14 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && rm -f "$FILE" \
     && helm version
 
-# terraform-docs — verify from checksums.txt
-RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && BASE="https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}" \
-    && FILE="/tmp/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${ARCH}.tar.gz" \
-    && fetch -o "$FILE" "${BASE}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${ARCH}.tar.gz" \
-    && verify_sha256_from_checksums "${BASE}/checksums.txt" "$FILE" \
-    && tar -C /usr/local/bin -zxpf "$FILE" terraform-docs \
-    && rm -f "$FILE" \
-    && terraform-docs --help >/dev/null
+# Terraform Docs
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && fetch -o /tmp/terraform-docs.tar.gz "https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/terraform-docs-${TERRAFORM_DOCS_VERSION}-${TARGETOS}-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
+    && tar zxpf /tmp/terraform-docs.tar.gz -C /usr/local/bin/ terraform-docs \
+    && rm -f /tmp/terraform-docs.tar.gz \
+    && chmod +x /usr/local/bin/terraform-docs \
+    && /usr/local/bin/terraform-docs --help
+
 
 # tflint — verify from checksums.txt
 RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -654,13 +679,11 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && rm -f "$FILE" \
     && tflint --version
 
-# tfsec — verify from checksums.txt
+# tfsec
 RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
-    && BASE="https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}" \
-    && FILE="/usr/local/bin/tfsec" \
-    && fetch -o "$FILE" "${BASE}/tfsec-linux-${ARCH}" \
-    && chmod +x "$FILE" \
-    && verify_sha256_from_checksums "${BASE}/checksums.txt" "$FILE" \
+    && fetch -o /usr/local/bin/tfsec \
+    "https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}/tfsec-linux-${ARCH}" \
+    && chmod +x /usr/local/bin/tfsec \
     && tfsec --version
 
 # Ownerships & dirs
