@@ -20,6 +20,7 @@ ENV TERRAFORM_VERSION=1.9.4 \
     TENV_AUTO_INSTALL=true \
     TENV_ROOT=/opt/tenv \
     TFLINT_VERSION=0.52.0 \
+    TFSEC_VERSION=1.28.14 \
     NODEJS_VERSION=20.16.0 \
     BUNDLER_VERSION=2.5.17 \
     BUNDLER_VERSION_DEPRECATED=2.4.13 \
@@ -186,6 +187,13 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && chmod +x /usr/local/bin/terraform-docs \
     && /usr/local/bin/terraform-docs --help
 
+# tfsec
+RUN TFSEC_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && wget -O /usr/local/bin/tfsec \
+    "https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}/tfsec-linux-${TFSEC_ARCH}" \
+    && chmod +x /usr/local/bin/tfsec \
+    && tfsec --version
+
 # sops & age
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && TARGETARCH_SYNONYM_SHORT3=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarch64") \
@@ -289,6 +297,9 @@ RUN mkdir -p /etc/bashrc.d \
     > /etc/bashrc.d/10-terrarium-path.sh \
     && chmod 0644 /etc/bashrc.d/10-terrarium-path.sh
 
+RUN printf '%s\n' 'umask 0002' >> /etc/profile.d/10-terrarium-path.sh \
+    && printf '%s\n' 'umask 0002' >> /etc/bashrc.d/10-terrarium-path.sh
+
 
 # Bats & tests
 RUN git clone --depth 1 --branch v1.11.0 https://github.com/bats-core/bats-core.git /opt/bats-core \
@@ -312,9 +323,11 @@ ARG DEVTOOLS_GID=2001
 RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
     && useradd -u 1001 terrarium || true \
     && usermod -aG devtools terrarium
-USER 1001:0
+USER root
 
 RUN chown -R terrarium:devtools /home/terrarium/tests
+
+USER terrarium
 
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)
 

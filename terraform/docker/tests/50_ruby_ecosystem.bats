@@ -30,3 +30,9 @@ load 'test_helper/common.bash'
   run cinc-auditor version
   assert_success
 }
+
+
+@test "Kitchen and Cinc Auditor shims are resolvable from PATH (no manual chown needed)" {
+  run bash -lc 'command -v kitchen && command -v cinc-auditor'
+  assert_success
+}
