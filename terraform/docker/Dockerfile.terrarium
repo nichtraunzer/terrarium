@@ -231,13 +231,34 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && tar -zxvf /tmp/helm.tar.gz --strip-components=1 -C /usr/local/bin linux-${TARGETARCH_SYNONYM_SHORT2}/helm \
     && rm -f /tmp/helm.tar.gz && helm version
 
+# kubectl
+RUN curl -fsSLo /usr/local/bin/kubectl \
+    https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
+    && kubectl version --client=true
+
+# helm
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && curl -fsSLo /tmp/helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
+    && tar -zxvf /tmp/helm.tar.gz --strip-components=1 -C /usr/local/bin linux-${TARGETARCH_SYNONYM_SHORT2}/helm \
+    && rm -f /tmp/helm.tar.gz \
+    && helm version
+
 ENV PATH=$PATH:/usr/local/go/bin
 
 
 # OpenSSL prereq
 RUN dnf -y install perl-IPC-Cmd && dnf clean all
 
+
 # Ruby / rbenv / bundler / gems
+=======
+# ─── OpenSSL build prereqs for ruby-build on RHEL/Rocky ───────────────
+RUN dnf -y install perl-IPC-Cmd && dnf clean all
+
+# setup ruby env and bundler gems
+# RUBY https://syslint.com/blog/tutorial/how-to-install-ruby-on-rails-with-rbenv-on-centos-7-or-rhel-7/
+
 RUN cd /opt \
     && umask 0002 \
     && git clone https://github.com/rbenv/rbenv.git /opt/rbenv \

@@ -15,6 +15,7 @@ https://github.com/nichtraunzer/terrarium/pull/46
 - `kitchen` / `cinc-auditor` reliably resolve on PATH; **no more Dev Container `postCreateCommand` chowns** required. Downstream users just add their user to `devtools` (`usermod -aG devtools <user>`).
 
 
+
 ## 2025-08-18 PR #44 feat(tools): added kubectl and helm with validation tests
 
 https://github.com/nichtraunzer/terrarium/pull/44
