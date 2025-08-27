@@ -252,7 +252,6 @@ RUN dnf -y install perl-IPC-Cmd && dnf clean all
 
 
 # Ruby / rbenv / bundler / gems
-=======
 # ─── OpenSSL build prereqs for ruby-build on RHEL/Rocky ───────────────
 RUN dnf -y install perl-IPC-Cmd && dnf clean all
 
