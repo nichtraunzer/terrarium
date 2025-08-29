@@ -24,3 +24,7 @@ load 'test_helper/common.bash'
 @test "pyenv is installed" {
   check_binary pyenv
 }
+
+@test "pre-commit is installed" {
+  check_binary pre-commit
+}
