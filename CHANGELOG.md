@@ -1,5 +1,21 @@
 # Changelog
 
+## 2025-08-22 PR #46 Make Terrarium image UID‑agnostic via stable devtools group; fix Ruby toolchain permissions & PATH for Dev Containers
+
+https://github.com/nichtraunzer/terrarium/pull/46
+
+### Changed
+- Image is now **UID‑agnostic** by introducing a stable `devtools` group (`DEVTOOLS_GID`, default `2001`) and applying setgid + group‑writable perms to `/opt/bundle` and `/opt/rbenv` (optional: `/opt/pyenv`, `/opt/tenv`).
+- Toolchain PATH and `rbenv` init are loaded for **login and non‑login shells** via `/etc/profile.d/10-terrarium-path.sh` and `/etc/bashrc.d/10-terrarium-path.sh`.
+
+### Added
+- Cooperative `umask 0002` for dev shells to keep group‑writable files.
+
+### Fixed
+- `kitchen` / `cinc-auditor` reliably resolve on PATH; **no more Dev Container `postCreateCommand` chowns** required. Downstream users just add their user to `devtools` (`usermod -aG devtools <user>`).
+
+
+
 ## 2025-08-18 PR #44 feat(tools): added kubectl and helm with validation tests
 
 https://github.com/nichtraunzer/terrarium/pull/44
