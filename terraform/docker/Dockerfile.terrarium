@@ -45,7 +45,8 @@ ENV INSTALL_PKGS="yum-utils gcc make git-core zlib zlib-devel gcc-c++ patch read
     libffi-devel openssl-devel make bzip2 autoconf automake libtool bison curl diffutils libyaml-devel sqlite-devel xz procps which sudo xorriso"
 
 # Put pyenv & rbenv shims ahead of everything else
-ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
+# ${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin should have AzureCLI, commitlint etc form python_requirements hence included in path to make these tools available
+ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 # Add gem executables and user-local bin (zoxide) to every shell
 ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
 ENV HOME=/home/terrarium
@@ -91,7 +92,7 @@ RUN chgrp -R devtools /opt/pyenv \
     && find /opt/pyenv -type f -exec chmod g+rw {} + \
     && find /opt/pyenv -type f -perm -u=x -exec chmod g+x {} +
 
-# Python libs
+# Python libs (these will be installed to ${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin so should be on the path as s et above)
 RUN python -m pip install --upgrade pip setuptools \
     && python -m pip install -r /tmp/requirements.txt \
     && rm -f /tmp/requirements
