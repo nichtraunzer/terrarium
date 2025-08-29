@@ -93,6 +93,7 @@ RUN chgrp -R devtools /opt/pyenv \
     && find /opt/pyenv -type f -perm -u=x -exec chmod g+x {} +
 
 # Python libs (these will be installed to ${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin so should be on the path as s et above)
+
 RUN python -m pip install --upgrade pip setuptools \
     && python -m pip install -r /tmp/requirements.txt \
     && rm -f /tmp/requirements
