@@ -62,6 +62,7 @@ ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILD
 ARG PYTHON_VERSION
 ARG GEM_HOME
 ARG BATS_CORE_VERSION
+ARG DEVTOOLS_GID=2001
 
 # Tool versions
 ENV AGE_VERSION=1.1.0 \
@@ -445,6 +446,7 @@ RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
 COPY pyproject.toml /tmp/pyproject.toml
 COPY uv.lock       /tmp/uv.lock
 RUN uv sync --directory /tmp --no-managed-python --frozen
+ENV PATH=/tmp/.venv/bin:$PATH
 
 # ─── Azure CLI (signed repo) ────────────────────────────────────────────────
 RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc \
@@ -686,10 +688,29 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && chmod +x /usr/local/bin/tfsec \
     && tfsec --version
 
+# ─── UID‑agnostic toolchains: create stable devtools group and set perms ─────
+RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
+    && install -d -m 0775 -o 1001 -g devtools "${HOME}" \
+    && install -d -m 2775 -o 0    -g devtools "${GEM_HOME}"
+
+# Set devtools group ownership on tool directories
+RUN chgrp -R devtools /opt/pyenv \
+    && find /opt/pyenv -type d -exec chmod 2775 {} + \
+    && find /opt/pyenv -type f -exec chmod g+rw {} + \
+    && find /opt/pyenv -type f -perm -u=x -exec chmod g+x {} +
+
+RUN chgrp -R devtools /opt/tenv \
+    && find /opt/tenv -type d -exec chmod 2775 {} + \
+    && find /opt/tenv -type f -exec chmod g+rw {} + \
+    && find /opt/tenv -type f -perm -u=x -exec chmod g+x {} +
+
+RUN chgrp -R devtools ${GEM_HOME} /opt/rbenv \
+    && find ${GEM_HOME} /opt/rbenv -type d -exec chmod 2775 {} + \
+    && find ${GEM_HOME} /opt/rbenv -type f -exec chmod g+rw {} + \
+    && find ${GEM_HOME} /opt/rbenv -type f -perm -u=x -exec chmod g+x {} +
+
 # Ownerships & dirs
 RUN chown -R 1001:0 ${HOME} && chmod -R g+rw ${HOME} \
-    && mkdir -p ${GEM_HOME} && chmod 2770 ${GEM_HOME} \
-    && chown -R 1001:0 ${GEM_HOME} && chmod -R g+rw ${GEM_HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
 
 RUN dnf -y install perl-IPC-Cmd && dnf clean all
@@ -744,8 +765,13 @@ RUN install -d -m 0755 /home/terrarium/tests/test_helper \
     && git clone --depth 1 https://github.com/bats-core/bats-support.git /home/terrarium/tests/test_helper/bats-support \
     && git clone --depth 1 https://github.com/bats-core/bats-assert.git   /home/terrarium/tests/test_helper/bats-assert
 RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
-RUN useradd -u 1001 terrarium
-USER 1001:0
+ARG DEVTOOLS_GID=2001
+RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
+    && useradd -u 1001 terrarium || true \
+    && usermod -aG devtools terrarium
+USER root
+RUN chown -R terrarium:devtools /home/terrarium/tests
+USER terrarium
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)
 
 # ================= Stage 3 — final =================
