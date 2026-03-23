@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-03-23 — refactor: move terraform/docker/ → docker/
+
+### Changed
+- Moved all build artifacts from `terraform/docker/` to `docker/` to simplify
+  the repo layout and remove the misleading `terraform/` prefix.
+- Updated all references in Makefile, GitHub Actions workflows, dependabot config,
+  .gitignore, README, and CHANGELOG.
+
+---
+
 ## 2025-08-22 PR #46 Make Terrarium image UID‑agnostic via stable devtools group; fix Ruby toolchain permissions & PATH for Dev Containers
 
 https://github.com/nichtraunzer/terrarium/pull/46
@@ -54,7 +64,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ### Added
 
-- Comprehensive Bats smoke/regression suite under `terraform/docker/tests/`:
+- Comprehensive Bats smoke/regression suite under `docker/tests/`:
   - `00_core.bats`, `20_infra.bats`, `30_aws.bats`, `40_terraform.bats`, `50_ruby_ecosystem.bats`, `60_k8s.bats`, `90_extras.bats`.
 - Test helper libraries vendored (`bats-support`, `bats-assert`) plus `tests/test_helper/common.bash`.
 - New multi‑stage `Dockerfile.terrarium` **test** target that runs the suite and emits a JUnit report at build time.
