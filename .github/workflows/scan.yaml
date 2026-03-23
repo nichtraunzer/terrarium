@@ -1,71 +1,63 @@
-name: Scan terrarium image using trivy
+name: Scan terrarium image (Trivy)
+
 on:
-  push:
+  # Run after the build workflow completes on master
+  workflow_run:
+    workflows: ["Build, test & publish terrarium"]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
   schedule:
     - cron: "0 13 * * *"
 
-env:
-  IMAGE_BASE: ${{ github.repository }}
-
 jobs:
   scan:
+    name: Scan for security vulnerabilities
+    # Skip if the triggering workflow failed (images weren't pushed)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: read
-      security-events: write # allow github/codeql-action/upload-sarif
-    name: Scan for Security Vulnerabilities
-    runs-on: ubuntu-22.04
+      security-events: write
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/dump-context
 
       - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull image
-        run: docker pull ghcr.io/${{ env.IMAGE_BASE }}:latest || echo "WARN: image not found, building locally"
-
-      - name: Build image locally if pull failed
+      - name: Pull image (or build locally if not yet published)
         run: |
-          if ! docker image inspect ghcr.io/${{ env.IMAGE_BASE }}:latest >/dev/null 2>&1; then
-            echo "Building image locally for scanning..."
+          IMAGE="ghcr.io/${{ github.repository }}:latest"
+          if docker pull "$IMAGE"; then
+            echo "Pulled $IMAGE from registry"
+          else
+            echo "Image not in registry — building locally for scanning"
             docker build -f docker/Dockerfile.terrarium --target final \
-              -t ghcr.io/${{ env.IMAGE_BASE }}:latest docker/
+              -t "$IMAGE" docker/
           fi
 
-      - name: Create public folder
-        run: |
-          mkdir -p public/
-
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: ghcr.io/${{ env.IMAGE_BASE }}:latest
-          format: "sarif"
-          output: "public/trivy-results.sarif"
+          image-ref: ghcr.io/${{ github.repository }}:latest
+          format: sarif
+          output: trivy-results.sarif
           exit-code: "1"
           ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload Trivy results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: "public/trivy-results.sarif"
-
-      - name: Run Trivy HTML report
-        uses: aquasecurity/trivy-action@master
-        if: always()
-        continue-on-error: true
-        with:
-          image-ref: ghcr.io/${{ env.IMAGE_BASE }}:latest
-          format: "table"
-          output: "public/trivy-results.txt"
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          sarif_file: trivy-results.sarif
