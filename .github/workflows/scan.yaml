@@ -1,26 +1,40 @@
 name: Scan terrarium image using trivy
 on:
   push:
+    branches: [master]
   workflow_dispatch:
   schedule:
     - cron: "0 13 * * *"
 
 env:
-  # github.repository as <account>/<repo>
   IMAGE_BASE: ${{ github.repository }}
 
 jobs:
   scan:
     permissions:
       contents: write
+      packages: read
       security-events: write # allow github/codeql-action/upload-sarif
     name: Scan for Security Vulnerabilities
-    # if: ${{ github.repository == 'nichtraunzer/terrarium' }}
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - uses: ./.github/actions/dump-context
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull image
+        run: docker pull ghcr.io/${{ env.IMAGE_BASE }}:latest || echo "WARN: image not found, building locally"
+
+      - name: Build image locally if pull failed
+        run: |
+          if ! docker image inspect ghcr.io/${{ env.IMAGE_BASE }}:latest >/dev/null 2>&1; then
+            echo "Building image locally for scanning..."
+            docker build -f docker/Dockerfile.terrarium --target final \
+              -t ghcr.io/${{ env.IMAGE_BASE }}:latest docker/
+          fi
 
       - name: Create public folder
         run: |
@@ -43,28 +57,15 @@ jobs:
         with:
           sarif_file: "public/trivy-results.sarif"
 
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy HTML report
         uses: aquasecurity/trivy-action@master
         if: always()
         continue-on-error: true
         with:
-          image-ref: "ghcr.io/${{ github.repository_owner }}/terrarium:latest"
-          format: "template"
-          template: "@/contrib/html.tpl"
-          output: "public/index.html"
+          image-ref: ghcr.io/${{ env.IMAGE_BASE }}:latest
+          format: "table"
+          output: "public/trivy-results.txt"
           exit-code: "0"
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH,MEDIUM"
-
-      #- name: Save scan results to github pages
-      #  uses: peaceiris/actions-gh-pages@v3
-      #  #if: ${{ github.ref == 'refs/heads/main' }}
-      #  if: always()
-      #  with:
-      #    github_token: ${{ secrets.GITHUB_TOKEN }}
-      #    publish_dir: ./public
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "public/trivy-results.sarif"
