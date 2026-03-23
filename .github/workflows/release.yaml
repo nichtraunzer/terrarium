@@ -63,8 +63,8 @@ jobs:
         id: build-and-push
         uses: docker/build-push-action@v6
         with:
-          context: ./terraform/docker
-          file: terraform/docker/Dockerfile.${{ matrix.image }}
+          context: ./docker
+          file: docker/Dockerfile.${{ matrix.image }}
           push: true
           target: test
           tags: |

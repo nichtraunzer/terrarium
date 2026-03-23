@@ -11,12 +11,12 @@ SHELLFLAGS := -eu -o pipefail -c
 
 # ---------------- Configuration ----------------
 # Keys management
-KEYS_SCRIPT ?= terraform/docker/vendor-keys/refresh-vendor-keys.sh
-ENV_FILE    ?= terraform/docker/vendor-keys/vendor-keys.env  # optional: where to stash shell-style pins
+KEYS_SCRIPT ?= docker/vendor-keys/refresh-vendor-keys.sh
+ENV_FILE    ?= docker/vendor-keys/vendor-keys.env  # optional: where to stash shell-style pins
 
 # Docker build/test
-DOCKERFILE       ?= terraform/docker/Dockerfile.terrarium
-DOCKER_CONTEXT   ?= terraform/docker
+DOCKERFILE       ?= docker/Dockerfile.terrarium
+DOCKER_CONTEXT   ?= docker
 IMAGE            ?= terrarium
 TAG              ?= latest
 TEST_STAGE       ?= test                     # Dockerfile stage that runs tests
