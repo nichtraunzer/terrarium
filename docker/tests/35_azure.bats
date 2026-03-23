@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 load 'test_helper/common.bash'
 
-# bats file_tags=azure
+# bats file_tags=azure,gcp
 
 
 # @azure
@@ -14,5 +14,11 @@ load 'test_helper/common.bash'
     run uv run --directory /tmp az --version
     assert_success
   fi
+}
+
+# @gcp
+@test "GCP CLI (gcloud) is available" {
+  run gcloud version
+  assert_success
 }
 

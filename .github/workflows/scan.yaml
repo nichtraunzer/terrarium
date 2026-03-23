@@ -1,70 +1,63 @@
-name: Scan terrarium image using trivy
+name: Scan terrarium image (Trivy)
+
 on:
-  push:
+  # Run after the build workflow completes on master
+  workflow_run:
+    workflows: ["Build, test & publish terrarium"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
   schedule:
     - cron: "0 13 * * *"
 
-env:
-  # github.repository as <account>/<repo>
-  IMAGE_BASE: ${{ github.repository }}
-
 jobs:
   scan:
+    name: Scan for security vulnerabilities
+    # Skip if the triggering workflow failed (images weren't pushed)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-      security-events: write # allow github/codeql-action/upload-sarif
-    name: Scan for Security Vulnerabilities
-    # if: ${{ github.repository == 'nichtraunzer/terrarium' }}
-    runs-on: ubuntu-22.04
+      contents: read
+      packages: read
+      security-events: write
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/dump-context
 
-      - name: Create public folder
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image (or build locally if not yet published)
         run: |
-          mkdir -p public/
+          IMAGE="ghcr.io/${{ github.repository }}:latest"
+          if docker pull "$IMAGE"; then
+            echo "Pulled $IMAGE from registry"
+          else
+            echo "Image not in registry — building locally for scanning"
+            docker build -f docker/Dockerfile.terrarium --target final \
+              -t "$IMAGE" docker/
+          fi
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: ghcr.io/${{ env.IMAGE_BASE }}:latest
-          format: "sarif"
-          output: "public/trivy-results.sarif"
+          image-ref: ghcr.io/${{ github.repository }}:latest
+          format: sarif
+          output: trivy-results.sarif
           exit-code: "1"
           ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload Trivy results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: "public/trivy-results.sarif"
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        if: always()
-        continue-on-error: true
-        with:
-          image-ref: "ghcr.io/${{ github.repository_owner }}/terrarium:latest"
-          format: "template"
-          template: "@/contrib/html.tpl"
-          output: "public/index.html"
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
-
-      #- name: Save scan results to github pages
-      #  uses: peaceiris/actions-gh-pages@v3
-      #  #if: ${{ github.ref == 'refs/heads/main' }}
-      #  if: always()
-      #  with:
-      #    github_token: ${{ secrets.GITHUB_TOKEN }}
-      #    publish_dir: ./public
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "public/trivy-results.sarif"
+          sarif_file: trivy-results.sarif
