@@ -73,9 +73,9 @@ faulty image can be pushed.
 ```text
 docker/tests/
 ├── 00_core.bats            # OS basics, Python, jq, GNU parallel …
-├── 20_infra.bats           # Consul, Packer, Sops, age‑keygen …
+├── 20_infra.bats           # Packer, Sops, age‑keygen …
 ├── 30_aws.bats             # aws, sam, cdk CLIs
-├── 40_terraform.bats       # Terraform via tenv, tflint, terraform‑docs …
+├── 40_terraform.bats       # Terraform via tenv, tflint, terraform‑docs, trivy …
 ├── 50_ruby_ecosystem.bats  # rbenv, Ruby, Bundler, Kitchen, Cinc …
 ├── 60_k8s.bats             # kubectl, helm (skipped if absent)
 └── 90_extras.bats          # Go, go‑task, starship, yq, zoxide
@@ -116,9 +116,10 @@ docker run --rm -it ghcr.io/nichtraunzer/terrarium:latest \
 
 | Category        | Representative assertions (excerpt)                               |
 | --------------- | ----------------------------------------------------------------- |
-| **Core OS**     | Image reports _Rocky Linux 8_, `python --version` works           |
+| **Core OS**     | Image reports _EL9 family (UBI/RHEL/Rocky)_, `python --version` works |
 | **AWS tooling** | `aws`, `sam`, `cdk` binaries present and runnable                 |
-| **Terraform**   | Required TF versions installed via **tenv**, `tflint` available   |
+| **Cloud CLIs**  | `az --version`, `gcloud version`                                      |
+| **Terraform**   | Required TF versions installed via **tenv**, `tflint`, `trivy`    |
 | **Infra/Sec**   | `sops --version`, `age-keygen` creates a keyfile                  |
 | **Ruby stack**  | `ruby`, `bundler`, `kitchen` CLI present                          |
 | **Extras**      | `starship`, `yq`, `zoxide`, `go-task` print their version strings |

@@ -17,4 +17,7 @@ load 'test_helper/common.bash'
   assert_success
 }
 
-@test "tfsec Installed" { check_binary tfsec; }
+@test "trivy is installed" {
+  run trivy version
+  assert_success
+}

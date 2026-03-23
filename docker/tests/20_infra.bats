@@ -5,8 +5,6 @@ load 'test_helper/common.bash'
 
 # bats file_tags=infra
 
-@test "Consul CLI" { check_binary consul; }
-
 @test "Packer CLI" { check_binary packer; }
 
 @test "Sops CLI" { check_binary sops; }
