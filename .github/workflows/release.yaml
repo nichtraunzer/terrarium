@@ -18,10 +18,6 @@ jobs:
   build:
     name: Build and release images
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        image: ["terrarium"]
     permissions:
       contents: read
       packages: write
@@ -64,8 +60,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./docker
-          file: docker/Dockerfile.${{ matrix.image }}
+          file: docker/Dockerfile.terrarium
           push: true
           target: test
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ steps.compute-tag.outputs.image_tag }}
+            ghcr.io/${{ github.repository }}:${{ steps.compute-tag.outputs.image_tag }}

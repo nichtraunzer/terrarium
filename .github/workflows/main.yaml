@@ -38,7 +38,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/terrarium
+          images: ghcr.io/${{ github.repository }}
           flavor: latest=auto,suffix=-linux-amd64
           tags: |
             type=schedule
@@ -93,7 +93,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/terrarium
+          images: ghcr.io/${{ github.repository }}
           flavor: latest=auto,suffix=-linux-arm64
           tags: |
             type=schedule
