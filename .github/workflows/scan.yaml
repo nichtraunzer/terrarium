@@ -16,7 +16,7 @@ on:
 
 jobs:
   scan:
-    name: Scan for security vulnerabilities
+    name: Scan (${{ matrix.platform }})
     # Skip if the triggering workflow failed (images weren't pushed)
     if: >-
       github.event_name != 'workflow_run' ||
@@ -26,6 +26,14 @@ jobs:
       contents: read
       packages: read
       security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            suffix: linux-amd64
+          - platform: linux/arm64
+            suffix: linux-arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -41,14 +49,14 @@ jobs:
       - name: Try to pull published image
         id: pull
         continue-on-error: true
-        run: docker pull "ghcr.io/${{ github.repository }}:latest-linux-amd64"
+        run: docker pull "ghcr.io/${{ github.repository }}:latest-${{ matrix.suffix }}"
 
       # Full image scan — only when a published image is available
       - name: Trivy image scan
         if: steps.pull.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}:latest-linux-amd64
+          image-ref: ghcr.io/${{ github.repository }}:latest-${{ matrix.suffix }}
           format: sarif
           output: trivy-results.sarif
           exit-code: "1"
@@ -76,3 +84,4 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-results.sarif
+          category: trivy-${{ matrix.suffix }}
