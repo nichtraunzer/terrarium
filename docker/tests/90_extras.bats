@@ -15,3 +15,25 @@ load 'test_helper/common.bash'
 @test "yq CLI" { check_binary yq; }
 
 @test "zoxide utility" { check_binary zoxide; }
+
+@test "oc client is present" {
+    run oc version --client
+    assert_success
+}
+
+@test "openstack CLI is installed and on PATH" {
+    run which openstack
+    assert_success
+}
+
+@test "openstack CLI runs and shows version" {
+    run openstack --version
+    assert_success
+    assert_output --partial "openstack"
+}
+
+@test "openstack help includes secret commands (barbican)" {
+    run openstack secret store --help
+    assert_success
+    assert_output --partial "secret"
+}
