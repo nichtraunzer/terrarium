@@ -38,18 +38,14 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull image (or build locally if not yet published)
-        run: |
-          IMAGE="ghcr.io/${{ github.repository }}:latest"
-          if docker pull "$IMAGE"; then
-            echo "Pulled $IMAGE from registry"
-          else
-            echo "Image not in registry — building locally for scanning"
-            docker build -f docker/Dockerfile.terrarium --target final \
-              -t "$IMAGE" docker/
-          fi
+      - name: Try to pull published image
+        id: pull
+        continue-on-error: true
+        run: docker pull "ghcr.io/${{ github.repository }}:latest"
 
-      - name: Run Trivy vulnerability scanner
+      # Full image scan — only when a published image is available
+      - name: Trivy image scan
+        if: steps.pull.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: ghcr.io/${{ github.repository }}:latest
@@ -59,6 +55,21 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH,MEDIUM
+
+      # Filesystem scan of Dockerfile + config — when no image is available
+      # (avoids building the full image which times out the runner)
+      - name: Trivy filesystem scan (no published image)
+        if: steps.pull.outcome != 'success'
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: docker/
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM
+          scanners: misconfig,secret
 
       - name: Upload Trivy results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
