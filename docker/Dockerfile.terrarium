@@ -699,6 +699,56 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
 RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v${TRIVY_VERSION} \
     && trivy version
 
+# --- OpenShift CLI (oc) ------------------------------------------------------
+ARG OC_VERSION=4.19.0
+RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}" \
+    && fetch -o /tmp/oc.tgz \
+       "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux-${arch}-rhel9.tar.gz" \
+    && tar -C /usr/local/bin -xzf /tmp/oc.tgz oc \
+    && rm -f /tmp/oc.tgz \
+    && oc version --client
+
+# --- OpenStack CLI -----------------------------------------------------------
+ARG OPENSTACK_VENV=/opt/openstack
+ARG OPENSTACK_CLIENT_VERSION=7.1.4
+ARG OPENSTACK_BARBICAN_VERSION=7.3.0
+RUN python -m venv ${OPENSTACK_VENV} \
+    && ${OPENSTACK_VENV}/bin/pip install --no-cache-dir \
+       python-openstackclient==${OPENSTACK_CLIENT_VERSION} \
+       python-barbicanclient==${OPENSTACK_BARBICAN_VERSION} \
+    && ln -s ${OPENSTACK_VENV}/bin/openstack /usr/local/bin/openstack \
+    && openstack --version
+
+# --- NPM per-user prefix (avoids sudo for global installs) -------------------
+RUN rm -rf ${HOME}/.npm ${HOME}/.npm-global \
+    && install -d -m 0755 -o 1001 -g 0 \
+       ${HOME}/.npm \
+       ${HOME}/.npm-global \
+       ${HOME}/.npm-global/bin \
+    && printf 'prefix=%s\ncache=%s\n' \
+       "${HOME}/.npm-global" "${HOME}/.npm" \
+       > ${HOME}/.npmrc \
+    && chown 1001:0 ${HOME}/.npmrc
+ENV PATH="${HOME}/.npm-global/bin:${PATH}"
+
+# --- Shell init (zoxide, starship, local bins) --------------------------------
+RUN echo 'eval "$(zoxide init bash)"' >> "${HOME}/.bashrc" \
+    && echo 'eval "$(starship init bash)"' >> "${HOME}/.bashrc" \
+    && echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc"
+
+# --- Persistent bash history (after shell init to append to PROMPT_COMMAND) ---
+RUN mkdir -p /commandhistory \
+    && touch /commandhistory/.bash_history \
+    && chown -R 1001:0 /commandhistory \
+    && { \
+         echo 'export HISTFILE=/commandhistory/.bash_history'; \
+         echo 'if [ -n "$PROMPT_COMMAND" ]; then'; \
+         echo '  PROMPT_COMMAND="$PROMPT_COMMAND;history -a"'; \
+         echo 'else'; \
+         echo '  PROMPT_COMMAND="history -a"'; \
+         echo 'fi'; \
+       } >> "${HOME}/.bashrc"
+
 # ─── UID‑agnostic toolchains: create stable devtools group and set perms ─────
 RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
     && install -d -m 0775 -o 1001 -g devtools "${HOME}" \
