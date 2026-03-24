@@ -711,10 +711,11 @@ RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}"
 # --- OpenStack CLI -----------------------------------------------------------
 ARG OPENSTACK_VENV=/opt/openstack
 ARG OPENSTACK_CLIENT_VERSION=7.1.4
+ARG OPENSTACK_BARBICAN_VERSION=7.3.0
 RUN python -m venv ${OPENSTACK_VENV} \
     && ${OPENSTACK_VENV}/bin/pip install --no-cache-dir \
        python-openstackclient==${OPENSTACK_CLIENT_VERSION} \
-       python-barbicanclient==7.3.0 \
+       python-barbicanclient==${OPENSTACK_BARBICAN_VERSION} \
     && ln -s ${OPENSTACK_VENV}/bin/openstack /usr/local/bin/openstack \
     && openstack --version
 
