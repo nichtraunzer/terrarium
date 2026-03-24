@@ -1,5 +1,53 @@
 # Changelog
 
+## [4.8.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI
+
+### Breaking Changes
+- **tfsec removed, replaced by Trivy** — if you reference `tfsec` in scripts/CI, replace with `trivy fs --scanners misconfig`
+- **Consul removed** — no longer bundled; install separately if needed
+- **Deprecated tool versions removed:** old Terraform 1.4.6, Bundler 2.4.13
+
+### Added
+- Trivy 0.69.3 (IaC security scanner, replaces deprecated tfsec)
+- GCP CLI (`gcloud`) via Google Cloud SDK yum repo
+
+### Upgraded
+- Python 3.12.11 → 3.13.12 (via pyenv)
+- Ruby 3.4.1 → 3.4.9 (via rbenv)
+- Bundler 2.7.1 → 2.7.2
+- Node.js 24.5.0 → 24.14.0
+- Go 1.24.6 → 1.26.1
+- tenv 1.2.0 → 4.9.3
+- Terraform default 1.12.2 → 1.14.7
+- Packer 1.14.1 → 1.15.0
+- kubectl 1.33.3 → 1.35.3
+- Helm 3.18.4 → 3.20.1
+- sops 3.10.2 → 3.12.2 (repo moved from mozilla/sops to getsops/sops)
+- age 1.1.0 → 1.3.1
+- tflint 0.58.1 → 0.61.0
+- terraform-docs v0.20.0 → v0.21.0
+- starship 1.23.0 → 1.24.2
+- zoxide 0.9.4 → 0.9.9
+- bats-core 1.11.0 → 1.13.0
+- yq 4.47.1 → 4.52.4
+- Task 3.43.1 → 3.49.1
+
+### Removed
+- tfsec (EOL — use Trivy instead)
+- Consul (no longer used internally)
+
+---
+
+## 2026-03-23 — refactor: move terraform/docker/ → docker/
+
+### Changed
+- Moved all build artifacts from `terraform/docker/` to `docker/` to simplify
+  the repo layout and remove the misleading `terraform/` prefix.
+- Updated all references in Makefile, GitHub Actions workflows, dependabot config,
+  .gitignore, README, and CHANGELOG.
+
+---
+
 ## 2025-08-22 PR #46 Make Terrarium image UID‑agnostic via stable devtools group; fix Ruby toolchain permissions & PATH for Dev Containers
 
 https://github.com/nichtraunzer/terrarium/pull/46
@@ -54,7 +102,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ### Added
 
-- Comprehensive Bats smoke/regression suite under `terraform/docker/tests/`:
+- Comprehensive Bats smoke/regression suite under `docker/tests/`:
   - `00_core.bats`, `20_infra.bats`, `30_aws.bats`, `40_terraform.bats`, `50_ruby_ecosystem.bats`, `60_k8s.bats`, `90_extras.bats`.
 - Test helper libraries vendored (`bats-support`, `bats-assert`) plus `tests/test_helper/common.bash`.
 - New multi‑stage `Dockerfile.terrarium` **test** target that runs the suite and emits a JUnit report at build time.

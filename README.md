@@ -26,9 +26,9 @@ If the Cloud Quickstarter does not contain it already simply create a [`.devcont
 
 ## Contents
 
-- [`.devcontainer`](.devcontainer) - Contains a plain devcontainer.json eample.
+- [`.devcontainer`](.devcontainer) - Contains a plain devcontainer.json example.
 - [`examples`](examples) - Contains a more sophisticated example.
-- [`terraform`](terraform) - Contains the Docker file.
+- [`docker`](docker) - Contains the Dockerfile, tests, and build support files.
 - [`tools`](tools) - Contains an additional prompt example.
 
 ## Update the terrarium tools
@@ -36,9 +36,9 @@ If the Cloud Quickstarter does not contain it already simply create a [`.devcont
 The tools and libraries of the terrarium toolset have to be updated from time to time.
 The following steps have to be performed:
 
-- Check for new versions of tool variables \*\_VERSION in i[Dockerfile.terrarium](./terraform/docker/Dockerfile.terrarium)
-- Check for new versions of python libraries in file [python_requirements](./terraform/docker/python_requirements) (might depend on Python Version)
-- Check for new versions of the ruby Gems in [Gemfile](./terraform/docker/Gemfile)
+- Check for new versions of tool variables \*\_VERSION in [Dockerfile.terrarium](./docker/Dockerfile.terrarium)
+- Check for new versions of python libraries in file [python_requirements](./docker/python_requirements) (might depend on Python Version)
+- Check for new versions of the ruby Gems in [Gemfile](./docker/Gemfile)
 - Rebuild the container image
   `$ DOCKER_BUILDKIT=1 docker build -t terrarium:update-tools -f ./Dockerfile.terrarium .`
 - Mount the folder with the new toolset and rebuild Gemfile.lock from scratch using `bundle install --jobs=22`
@@ -64,18 +64,18 @@ faulty image can be pushed.
   helper libs **bats‑support** and **bats‑assert**
 - **Philosophy:** ultra‑fast _smoke_ tests – “does the binary exist and print the
   expected version?”
-- **Where:** `terraform/docker/tests/…`
+- **Where:** `docker/tests/…`
 
 ---
 
 ### Test layout
 
 ```text
-terraform/docker/tests/
+docker/tests/
 ├── 00_core.bats            # OS basics, Python, jq, GNU parallel …
-├── 20_infra.bats           # Consul, Packer, Sops, age‑keygen …
+├── 20_infra.bats           # Packer, Sops, age‑keygen …
 ├── 30_aws.bats             # aws, sam, cdk CLIs
-├── 40_terraform.bats       # Terraform via tenv, tflint, terraform‑docs …
+├── 40_terraform.bats       # Terraform via tenv, tflint, terraform‑docs, trivy …
 ├── 50_ruby_ecosystem.bats  # rbenv, Ruby, Bundler, Kitchen, Cinc …
 ├── 60_k8s.bats             # kubectl, helm (skipped if absent)
 └── 90_extras.bats          # Go, go‑task, starship, yq, zoxide
@@ -95,8 +95,8 @@ Run every stage up to and including “test”
 docker build \
   --target test \
   --tag terrarium:test \
-  -f terraform/docker/Dockerfile.terrarium \
-  terraform/docker
+  -f docker/Dockerfile.terrarium \
+  docker
 ```
 
 If any Bats assertion fails the build exits non‑zero – just like CI.
@@ -116,9 +116,10 @@ docker run --rm -it ghcr.io/nichtraunzer/terrarium:latest \
 
 | Category        | Representative assertions (excerpt)                               |
 | --------------- | ----------------------------------------------------------------- |
-| **Core OS**     | Image reports _Rocky Linux 8_, `python --version` works           |
+| **Core OS**     | Image reports _EL9 family (UBI/RHEL/Rocky)_, `python --version` works |
 | **AWS tooling** | `aws`, `sam`, `cdk` binaries present and runnable                 |
-| **Terraform**   | Required TF versions installed via **tenv**, `tflint` available   |
+| **Cloud CLIs**  | `az --version`, `gcloud version`                                      |
+| **Terraform**   | Required TF versions installed via **tenv**, `tflint`, `trivy`    |
 | **Infra/Sec**   | `sops --version`, `age-keygen` creates a keyfile                  |
 | **Ruby stack**  | `ruby`, `bundler`, `kitchen` CLI present                          |
 | **Extras**      | `starship`, `yq`, `zoxide`, `go-task` print their version strings |

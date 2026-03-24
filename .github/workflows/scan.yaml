@@ -1,6 +1,11 @@
 name: Scan terrarium image (Trivy)
 
 on:
+  # Run after the build workflow completes on master
+  workflow_run:
+    workflows: ["Build, test & publish terrarium"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
   schedule:
     - cron: "0 13 * * *"
@@ -8,6 +13,10 @@ on:
 jobs:
   scan:
     name: Scan for security vulnerabilities
+    # Skip if the triggering workflow failed (images weren't pushed)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
