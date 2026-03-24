@@ -1,7 +1,11 @@
 name: Scan terrarium image (Trivy)
 
 on:
-  # Run after the build workflow completes on master
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  # Also run after the build workflow completes (image may now be in GHCR)
   workflow_run:
     workflows: ["Build, test & publish terrarium"]
     types: [completed]
