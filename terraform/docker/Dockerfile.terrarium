@@ -140,7 +140,7 @@ ENV AGE_VERSION=1.1.0 \
 # ───────────────────────────────────────────────────────────────────────────────────────────────
 
 ENV HASHICORP_PGP_FPR=C874011F0AB405110D02105534365D9472D7468F \
-    AWS_CLI_PGP_URL="https://awscli.amazonaws.com/AWSCLIV2.asc" \
+    AWS_CLI_PGP_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xFB5DB77FD5C118B80511ADA8A6310ACC4672475C" \
     AWS_CLI_PGP_FPR=FB5DB77FD5C118B80511ADA8A6310ACC4672475C \
     NODE_RELEASE_FPRS="\
     0912234647DD4B223F04152259EB1E31F56368C1 \
@@ -614,7 +614,16 @@ RUN set -eux; \
     exit 0; \
     fi; \
     fi; \
-    echo "WARN: No official age tarball + checksums for v${AGE_VERSION}; falling back to Go build"; \
+    echo "INFO: No checksums file for age v${AGE_VERSION} (v1.2.0+ uses sigstore .proof files instead)"; \
+    FNAME="age-v${AGE_VERSION}-linux-${ARCH_SHORT}.tar.gz"; \
+    if fetch -o "$tmp/$FNAME" "${BASE}/${FNAME}"; then \
+    echo "INFO: Downloaded pre-built age tarball (no checksum verification — use cosign .proof for supply-chain verification)"; \
+    tar -zxpf "$tmp/$FNAME" --strip-components=1 -C /usr/local/bin age/age age/age-keygen; \
+    rm -rf "$tmp"; \
+    /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all; \
+    exit 0; \
+    fi; \
+    echo "WARN: Pre-built tarball unavailable; falling back to Go build"; \
     GOBIN=/usr/local/bin go install filippo.io/age/cmd/age@v${AGE_VERSION} || GOBIN=/usr/local/bin go install filippo.io/age/cmd/age@latest; \
     GOBIN=/usr/local/bin go install filippo.io/age/cmd/age-keygen@v${AGE_VERSION} || GOBIN=/usr/local/bin go install filippo.io/age/cmd/age-keygen@latest; \
     /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all
