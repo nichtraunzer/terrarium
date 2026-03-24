@@ -21,7 +21,7 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: read
@@ -32,8 +32,10 @@ jobs:
         include:
           - platform: linux/amd64
             suffix: linux-amd64
+            runner: ubuntu-latest
           - platform: linux/arm64
             suffix: linux-arm64
+            runner: ubuntu-22.04-arm
 
     steps:
       - uses: actions/checkout@v4
