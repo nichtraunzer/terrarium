@@ -37,3 +37,8 @@ load 'test_helper/common.bash'
     assert_success
     assert_output --partial "secret"
 }
+
+@test "trivy is installed" {
+  run trivy version
+  assert_success
+}

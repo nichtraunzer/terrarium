@@ -17,7 +17,13 @@ load 'test_helper/common.bash'
   assert_success
 }
 
-@test "trivy is installed" {
-  run trivy version
+@test "OpenTofu via tenv works" {
+  run tenv tofu list
   assert_success
 }
+
+@test "tofu version runs" {
+  run tofu -version
+  assert_success
+}
+
