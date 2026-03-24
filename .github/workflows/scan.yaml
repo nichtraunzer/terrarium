@@ -41,14 +41,14 @@ jobs:
       - name: Try to pull published image
         id: pull
         continue-on-error: true
-        run: docker pull "ghcr.io/${{ github.repository }}:latest"
+        run: docker pull "ghcr.io/${{ github.repository }}:latest-linux-amd64"
 
       # Full image scan — only when a published image is available
       - name: Trivy image scan
         if: steps.pull.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}:latest
+          image-ref: ghcr.io/${{ github.repository }}:latest-linux-amd64
           format: sarif
           output: trivy-results.sarif
           exit-code: "1"
