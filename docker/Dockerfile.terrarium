@@ -704,7 +704,7 @@ ARG OC_VERSION=4.19.0
 RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}" \
     && fetch -o /tmp/oc.tgz \
        "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux-${arch}-rhel9.tar.gz" \
-    && tar -C /usr/local/bin -xzf /tmp/oc.tgz \
+    && tar -C /usr/local/bin -xzf /tmp/oc.tgz oc \
     && rm -f /tmp/oc.tgz \
     && oc version --client
 
@@ -714,7 +714,7 @@ ARG OPENSTACK_CLIENT_VERSION=7.1.4
 RUN python -m venv ${OPENSTACK_VENV} \
     && ${OPENSTACK_VENV}/bin/pip install --no-cache-dir \
        python-openstackclient==${OPENSTACK_CLIENT_VERSION} \
-       python-barbicanclient \
+       python-barbicanclient==7.3.0 \
     && ln -s ${OPENSTACK_VENV}/bin/openstack /usr/local/bin/openstack \
     && openstack --version
 
@@ -730,17 +730,23 @@ RUN rm -rf ${HOME}/.npm ${HOME}/.npm-global \
     && chown 1001:0 ${HOME}/.npmrc
 ENV PATH="${HOME}/.npm-global/bin:${PATH}"
 
-# --- Persistent bash history -------------------------------------------------
-RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
-    && mkdir -p /commandhistory \
-    && touch /commandhistory/.bash_history \
-    && chown -R 1001:0 /commandhistory \
-    && echo "$SNIPPET" >> "${HOME}/.bashrc"
-
 # --- Shell init (zoxide, starship, local bins) --------------------------------
 RUN echo 'eval "$(zoxide init bash)"' >> "${HOME}/.bashrc" \
     && echo 'eval "$(starship init bash)"' >> "${HOME}/.bashrc" \
     && echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc"
+
+# --- Persistent bash history (after shell init to append to PROMPT_COMMAND) ---
+RUN mkdir -p /commandhistory \
+    && touch /commandhistory/.bash_history \
+    && chown -R 1001:0 /commandhistory \
+    && { \
+         echo 'export HISTFILE=/commandhistory/.bash_history'; \
+         echo 'if [ -n "$PROMPT_COMMAND" ]; then'; \
+         echo '  PROMPT_COMMAND="$PROMPT_COMMAND;history -a"'; \
+         echo 'else'; \
+         echo '  PROMPT_COMMAND="history -a"'; \
+         echo 'fi'; \
+       } >> "${HOME}/.bashrc"
 
 # ─── UID‑agnostic toolchains: create stable devtools group and set perms ─────
 RUN groupadd -g ${DEVTOOLS_GID} devtools || true \

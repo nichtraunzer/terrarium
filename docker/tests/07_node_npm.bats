@@ -27,16 +27,43 @@ load 'test_helper/common.bash'
 }
 
 @test "npm global install works without sudo" {
-    run npm install -g semver
+    # Use a local package to avoid network dependency
+    tmpdir="$(mktemp -d)"
+
+    cat >"$tmpdir/package.json" <<'PKGJSON'
+{
+  "name": "test-global-install",
+  "version": "1.0.0",
+  "bin": {
+    "test-global-install": "bin/test-global-install"
+  }
+}
+PKGJSON
+
+    mkdir -p "$tmpdir/bin"
+    cat >"$tmpdir/bin/test-global-install" <<'BIN'
+#!/usr/bin/env bash
+echo "ok"
+BIN
+    chmod +x "$tmpdir/bin/test-global-install"
+
+    run npm install -g "$tmpdir"
     assert_success
     # verify the binary was installed in the per-user prefix
-    run bash -c 'test -f "$(npm config get prefix)/bin/semver"'
+    run bash -c 'test -f "$(npm config get prefix)/bin/test-global-install"'
     assert_success
     # cleanup
-    npm uninstall -g semver
+    npm uninstall -g test-global-install
+    rm -rf "$tmpdir"
 }
 
 @test "no root-owned files in npm-global" {
-    run bash -c 'find ~/.npm-global -user root 2>/dev/null | head -1'
+    # Ensure the directory exists so the test cannot pass trivially
+    run bash -c 'test -d "$HOME/.npm-global"'
+    assert_success
+
+    # Verify no root-owned files exist
+    run bash -c 'find "$HOME/.npm-global" -user root -print -quit 2>/dev/null'
+    assert_success
     assert_output ""
 }
