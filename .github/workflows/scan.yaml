@@ -45,8 +45,8 @@ jobs:
             echo "Pulled $IMAGE from registry"
           else
             echo "Image not in registry — building locally for scanning"
-            docker build -f terraform/docker/Dockerfile.terrarium --target final \
-              -t "$IMAGE" terraform/docker/
+            docker build -f docker/Dockerfile.terrarium --target final \
+              -t "$IMAGE" docker/
           fi
 
       - name: Run Trivy vulnerability scanner
