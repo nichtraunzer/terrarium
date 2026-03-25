@@ -61,31 +61,59 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Gate: build through the test stage — bats must pass
+      # Uses a retry loop to handle transient 502 errors from GHA cache / GHCR
       - name: Build & run tests
-        uses: docker/build-push-action@v6
-        with:
-          context: ./docker
-          file: docker/Dockerfile.terrarium
-          platforms: ${{ matrix.platform }}
-          push: false
-          target: test
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::Attempt $attempt of 3"
+            docker buildx build \
+              --file docker/Dockerfile.terrarium \
+              --target test \
+              --platform ${{ matrix.platform }} \
+              --cache-from type=gha,scope=${{ matrix.platform }} \
+              --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
+              ./docker \
+              && { echo "::endgroup::"; break; } \
+              || { echo "::endgroup::"; echo "::warning::Build attempt $attempt failed"; }
+            if [ "$attempt" -eq 3 ]; then echo "::error::All 3 build attempts failed"; exit 1; fi
+            sleep 30
+          done
 
       # Push: build the clean final stage (no test artifacts)
       - name: Build & push final image
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: ./docker
-          file: docker/Dockerfile.terrarium
-          platforms: ${{ matrix.platform }}
-          push: true
-          target: final
-          labels: ${{ steps.meta.outputs.labels }}
-          sbom: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha,scope=${{ matrix.platform }}
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+          META_LABELS: ${{ steps.meta.outputs.labels }}
+        run: |
+          # Build --tag and --label flags from newline-separated metadata outputs
+          tag_flags=""
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && tag_flags="$tag_flags --tag $tag"
+          done <<< "$META_TAGS"
+
+          label_flags=""
+          while IFS= read -r label; do
+            [ -n "$label" ] && label_flags="$label_flags --label $label"
+          done <<< "$META_LABELS"
+
+          for attempt in 1 2 3; do
+            echo "::group::Attempt $attempt of 3"
+            docker buildx build \
+              --file docker/Dockerfile.terrarium \
+              --target final \
+              --platform ${{ matrix.platform }} \
+              --push \
+              --sbom=true \
+              --cache-from type=gha,scope=${{ matrix.platform }} \
+              $tag_flags \
+              $label_flags \
+              ./docker \
+              && { echo "::endgroup::"; break; } \
+              || { echo "::endgroup::"; echo "::warning::Push attempt $attempt failed"; }
+            if [ "$attempt" -eq 3 ]; then echo "::error::All 3 push attempts failed"; exit 1; fi
+            sleep 30
+          done
 
   ################################################################################
   # 2 ────────── Create multi‑arch manifest ────────────────────────────────────

@@ -8,6 +8,7 @@
 - **Deprecated tool versions removed:** old Terraform 1.4.6, Bundler 2.4.13
 
 ### Added
+- OpenTofu 1.11.5 via tenv (`OPENTOFU_VERSION` env var, `tenv tofu install/use`)
 - Trivy 0.69.3 (IaC security scanner, replaces deprecated tfsec)
 - GCP CLI (`gcloud`) via Google Cloud SDK yum repo
 
