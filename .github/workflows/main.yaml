@@ -106,7 +106,8 @@ jobs:
               --push \
               --sbom=true \
               --cache-from type=gha,scope=${{ matrix.platform }} \
-              $tag_flags $label_flags ./docker \
+              $tag_flags $label_flags \
+              ./docker \
               && { echo "::endgroup::"; break; } \
               || { echo "::endgroup::"; echo "::warning::Push attempt $attempt failed"; }
             if [ "$attempt" -eq 3 ]; then echo "::error::All 3 push attempts failed"; exit 1; fi
