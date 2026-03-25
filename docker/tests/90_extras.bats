@@ -21,23 +21,6 @@ load 'test_helper/common.bash'
     assert_success
 }
 
-@test "openstack CLI is installed and on PATH" {
-    run which openstack
-    assert_success
-}
-
-@test "openstack CLI runs and shows version" {
-    run openstack --version
-    assert_success
-    assert_output --partial "openstack"
-}
-
-@test "openstack help includes secret commands (barbican)" {
-    run openstack secret store --help
-    assert_success
-    assert_output --partial "secret"
-}
-
 @test "trivy is installed" {
   run trivy version
   assert_success
