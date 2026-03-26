@@ -99,4 +99,13 @@ load 'test_helper/common.bash'
   assert_output --partial "/opt/node/bin"
 }
 
+@test "GNUPGHOME is owned by the active user (VS Code GPG agent forwarding)" {
+  [ -n "$GNUPGHOME" ] || { echo "GNUPGHOME is not set" >&2; return 1; }
+  [ -d "$GNUPGHOME" ] || { echo "GNUPGHOME ($GNUPGHOME) does not exist" >&2; return 1; }
+  expected_user="$(id -un)"
+  run stat -c '%U' "$GNUPGHOME"
+  assert_success
+  assert_output "$expected_user"
+}
+
 
