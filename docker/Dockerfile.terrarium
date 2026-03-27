@@ -818,8 +818,12 @@ RUN set -eux; \
     rm -rf /opt/bats-core; \
     bats --version
 
-# Ensure GNUPGHOME is owned by UID 1001 (terrarium) so VS Code GPG agent forwarding works
-RUN chown -R 1001:0 "$GNUPGHOME"
+# --- Redirect GNUPGHOME to ~/.gnupg so VS Code UID remapping works -----------
+# Build-time GNUPGHOME=/opt/keys/gnupg is mode 0700. When updateRemoteUserUID
+# remaps the UID, /opt/keys/gnupg becomes inaccessible. Redirect to ~/.gnupg
+# which lives under $HOME and follows the UID remap automatically.
+RUN install -d -m 0700 -o 1001 -g 0 /home/terrarium/.gnupg
+ENV GNUPGHOME=/home/terrarium/.gnupg
 
 COPY tests /home/terrarium/tests
 
