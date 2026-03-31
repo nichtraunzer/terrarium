@@ -3,16 +3,19 @@
 ## [4.8.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI
 
 ### Breaking Changes
+
 - **tfsec removed, replaced by Trivy** — if you reference `tfsec` in scripts/CI, replace with `trivy fs --scanners misconfig`
 - **Consul removed** — no longer bundled; install separately if needed
 - **Deprecated tool versions removed:** old Terraform 1.4.6, Bundler 2.4.13
 
 ### Added
+
 - OpenTofu 1.11.5 via tenv (`OPENTOFU_VERSION` env var, `tenv tofu install/use`)
 - Trivy 0.69.3 (IaC security scanner, replaces deprecated tfsec)
 - GCP CLI (`gcloud`) via Google Cloud SDK yum repo
 
 ### Upgraded
+
 - Python 3.12.11 → 3.13.12 (via pyenv)
 - Ruby 3.4.1 → 3.4.9 (via rbenv)
 - Bundler 2.7.1 → 2.7.2
@@ -34,6 +37,7 @@
 - Task 3.43.1 → 3.49.1
 
 ### Removed
+
 - tfsec (EOL — use Trivy instead)
 - Consul (no longer used internally)
 
@@ -42,6 +46,7 @@
 ## 2026-03-23 — refactor: move terraform/docker/ → docker/
 
 ### Changed
+
 - Moved all build artifacts from `terraform/docker/` to `docker/` to simplify
   the repo layout and remove the misleading `terraform/` prefix.
 - Updated all references in Makefile, GitHub Actions workflows, dependabot config,
@@ -51,23 +56,24 @@
 
 ## 2025-08-22 PR #46 Make Terrarium image UID‑agnostic via stable devtools group; fix Ruby toolchain permissions & PATH for Dev Containers
 
-https://github.com/nichtraunzer/terrarium/pull/46
+<https://github.com/nichtraunzer/terrarium/pull/46>
 
 ### Changed
+
 - Image is now **UID‑agnostic** by introducing a stable `devtools` group (`DEVTOOLS_GID`, default `2001`) and applying setgid + group‑writable perms to `/opt/bundle` and `/opt/rbenv` (optional: `/opt/pyenv`, `/opt/tenv`).
 - Toolchain PATH and `rbenv` init are loaded for **login and non‑login shells** via `/etc/profile.d/10-terrarium-path.sh` and `/etc/bashrc.d/10-terrarium-path.sh`.
 
 ### Added
+
 - Cooperative `umask 0002` for dev shells to keep group‑writable files.
 
 ### Fixed
+
 - `kitchen` / `cinc-auditor` reliably resolve on PATH; **no more Dev Container `postCreateCommand` chowns** required. Downstream users just add their user to `devtools` (`usermod -aG devtools <user>`).
-
-
 
 ## 2025-08-18 PR #44 feat(tools): added kubectl and helm with validation tests
 
-https://github.com/nichtraunzer/terrarium/pull/44
+<https://github.com/nichtraunzer/terrarium/pull/44>
 
 ### Added
 
@@ -103,7 +109,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ### Added
 
-- Comprehensive Bats smoke/regression suite under `docker/tests/`:
+- Comprehensive Bats smoke/regression suite under `terraform/docker/tests/`:
   - `00_core.bats`, `20_infra.bats`, `30_aws.bats`, `40_terraform.bats`, `50_ruby_ecosystem.bats`, `60_k8s.bats`, `90_extras.bats`.
 - Test helper libraries vendored (`bats-support`, `bats-assert`) plus `tests/test_helper/common.bash`.
 - New multi‑stage `Dockerfile.terrarium` **test** target that runs the suite and emits a JUnit report at build time.
@@ -120,7 +126,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ---
 
-## 2024-10-18 Update Tools:
+## 2024-10-18 Update Tools
 
 - ruby 3.3.4
 - bundler
@@ -137,7 +143,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ---
 
-## 2023-04-28 Update Tools:
+## 2023-04-28 Update Tools
 
 - ruby 3.2.2
 - bundler
@@ -151,4 +157,4 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ---
 
-## 2022-03-15 Initial release.
+## 2022-03-15 Initial release
