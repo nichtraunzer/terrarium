@@ -576,6 +576,13 @@ RUN set -eux; \
     && rm -f "/tmp/${FNAME}" \
     && zoxide --version
 
+# Default starship config — downstream images can override by copying their
+# own starship.toml to ~/.config/starship.toml
+RUN mkdir -p ${HOME}/.config \
+    && chown -R 1001:0 ${HOME}/.config
+COPY files/starship.toml ${HOME}/.config/starship.toml
+RUN chown 1001:0 ${HOME}/.config/starship.toml
+
 # Go toolchain + go-task (robust checksum + JSON fallback)
 RUN set -eux; \
     ARCH=$([ "$TARGETARCH" = "amd64" ] && echo amd64 || echo arm64); \
