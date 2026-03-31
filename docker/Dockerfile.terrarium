@@ -744,7 +744,8 @@ RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}"
 
 # --- OpenStack CLI -----------------------------------------------------------
 ARG OPENSTACK_VENV=/opt/openstack
-ARG OPENSTACK_CLIENT_VERSION=7.1.4
+# Version should match upper constraints https://opendev.org/openstack/requirements/src/branch/master/upper-constraints.txt
+ARG OPENSTACK_CLIENT_VERSION=7.1.5
 ARG OPENSTACK_BARBICAN_VERSION=7.3.0
 RUN python -m venv ${OPENSTACK_VENV} \
     && ${OPENSTACK_VENV}/bin/pip install --no-cache-dir \
