@@ -553,14 +553,35 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
 # terraform-config-inspect
 ARG TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0
 
-# starship & zoxide (left as script installers; pin versions already)
-RUN fetch -o /tmp/starship.sh https://starship.rs/install.sh \
-    && chmod +x /tmp/starship.sh \
-    && /tmp/starship.sh --yes \
-    && rm -f /tmp/starship.sh \
-    && fetch -o /tmp/zoxide.sh https://webinstall.dev/zoxide \
-    && chmod +x /tmp/zoxide.sh \
-    && /tmp/zoxide.sh && rm -f /tmp/zoxide.sh
+# starship — download binary directly and verify checksum
+RUN set -eux; \
+    ARCH=$([[ "$TARGETARCH" = "amd64" ]] && echo "x86_64" || echo "aarch64"); \
+    BASE="https://github.com/starship/starship/releases/download/v${STARSHIP_VERSION}"; \
+    FNAME="starship-${ARCH}-unknown-linux-musl.tar.gz"; \
+    fetch -o "/tmp/${FNAME}" "${BASE}/${FNAME}" \
+    && verify_sha256_from_url "${BASE}/${FNAME}.sha256" "/tmp/${FNAME}" \
+    && tar -xzf "/tmp/${FNAME}" -C /usr/local/bin starship \
+    && rm -f "/tmp/${FNAME}" \
+    && starship --version
+
+# zoxide — download pinned binary directly from GitHub releases
+# Note: zoxide does not publish checksums; direct download is still safer than
+# piping through webinstall.dev. TODO: add checksum verification when available.
+RUN set -eux; \
+    ARCH=$([[ "$TARGETARCH" = "amd64" ]] && echo "x86_64" || echo "aarch64"); \
+    BASE="https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}"; \
+    FNAME="zoxide-${ZOXIDE_VERSION}-${ARCH}-unknown-linux-musl.tar.gz"; \
+    fetch -o "/tmp/${FNAME}" "${BASE}/${FNAME}" \
+    && tar -xzf "/tmp/${FNAME}" -C /usr/local/bin zoxide \
+    && rm -f "/tmp/${FNAME}" \
+    && zoxide --version
+
+# Default starship config — downstream images can override by copying their
+# own starship.toml to ~/.config/starship.toml
+RUN mkdir -p ${HOME}/.config \
+    && chown -R 1001:0 ${HOME}/.config
+COPY files/starship.toml ${HOME}/.config/starship.toml
+RUN chown 1001:0 ${HOME}/.config/starship.toml
 
 # Go toolchain + go-task (robust checksum + JSON fallback)
 RUN set -eux; \
@@ -624,34 +645,38 @@ RUN set -eux; \
     exit 0; \
     fi; \
     fi; \
-    echo "INFO: No checksums file for age v${AGE_VERSION} (v1.2.0+ uses sigstore .proof files instead)"; \
+    echo "WARN: No checksums file for age v${AGE_VERSION}"; \
     FNAME="age-v${AGE_VERSION}-linux-${ARCH_SHORT}.tar.gz"; \
     if fetch -o "$tmp/$FNAME" "${BASE}/${FNAME}"; then \
-    echo "INFO: Downloaded pre-built age tarball (no checksum verification — use cosign .proof for supply-chain verification)"; \
+    echo "WARN: Downloaded pre-built age tarball without checksum verification"; \
+    echo "WARN: Consider verifying via cosign .proof for supply-chain assurance"; \
     tar -zxpf "$tmp/$FNAME" --strip-components=1 -C /usr/local/bin age/age age/age-keygen; \
     rm -rf "$tmp"; \
     /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all; \
     exit 0; \
     fi; \
-    echo "WARN: Pre-built tarball unavailable; falling back to Go build"; \
-    GOBIN=/usr/local/bin go install filippo.io/age/cmd/age@v${AGE_VERSION} || GOBIN=/usr/local/bin go install filippo.io/age/cmd/age@latest; \
-    GOBIN=/usr/local/bin go install filippo.io/age/cmd/age-keygen@v${AGE_VERSION} || GOBIN=/usr/local/bin go install filippo.io/age/cmd/age-keygen@latest; \
-    /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all
+    # Intentionally fail-closed: the previous `go install @latest` fallback was removed
+    # as a supply-chain hardening measure (Phase 8 T10) — unverified builds are not acceptable.
+    # If this fails, either the GitHub release is temporarily unavailable (retry the build)
+    # or the version/architecture combination doesn't have a pre-built tarball.
+    echo "ERROR: Cannot install age v${AGE_VERSION} — no verified source available"; exit 1
 
 
-# terraform-config-inspect (support "latest" tag)
-RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64"); \
+# terraform-config-inspect (support "latest" tag; use fetch wrapper for retries)
+RUN set -eux; \
+    ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64"); \
     if [ "${TERRAFORM_CONFIG_INSPECT_VERSION}" = "latest" ]; then \
-    TCI_TAG="$(curl -fsSL https://api.github.com/repos/nichtraunzer/terraform-config-inspect/releases/latest | jq -r .tag_name)"; \
+    TCI_TAG="$(fetch https://api.github.com/repos/nichtraunzer/terraform-config-inspect/releases/latest | jq -r .tag_name)"; \
     TCI_VER="${TCI_TAG#v}"; \
     else \
     TCI_TAG="v${TERRAFORM_CONFIG_INSPECT_VERSION}"; \
     TCI_VER="${TERRAFORM_CONFIG_INSPECT_VERSION#v}"; \
     fi; \
-    curl -fsSLo /tmp/terraform-config-inspect.tar.gz \
-    "https://github.com/nichtraunzer/terraform-config-inspect/releases/download/${TCI_TAG}/terraform-config-inspect_${TCI_VER}_${TARGETOS}_${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
-    && tar zxpf /tmp/terraform-config-inspect.tar.gz -C /usr/local/bin/ terraform-config-inspect \
-    && rm -f /tmp/terraform-config-inspect.tar.gz \
+    FNAME="terraform-config-inspect_${TCI_VER}_${TARGETOS}_${ARCH}.tar.gz"; \
+    BASE="https://github.com/nichtraunzer/terraform-config-inspect/releases/download/${TCI_TAG}"; \
+    fetch -o "/tmp/${FNAME}" "${BASE}/${FNAME}" \
+    && tar zxpf "/tmp/${FNAME}" -C /usr/local/bin/ terraform-config-inspect \
+    && rm -f "/tmp/${FNAME}" \
     && chmod 755 /usr/local/bin/terraform-config-inspect \
     && /usr/local/bin/terraform-config-inspect
 
@@ -701,7 +726,15 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && tflint --version
 
 # --- Trivy (IaC security scanner, replaces deprecated tfsec) ------------------
-RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v${TRIVY_VERSION} \
+# Download binary directly and verify checksum instead of curl-pipe-to-shell
+RUN set -eux; \
+    ARCH=$([[ "$TARGETARCH" = "amd64" ]] && echo "64bit" || echo "ARM64"); \
+    BASE="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"; \
+    FNAME="trivy_${TRIVY_VERSION}_Linux-${ARCH}.tar.gz"; \
+    fetch -o "/tmp/${FNAME}" "${BASE}/${FNAME}" \
+    && verify_sha256_from_checksums "${BASE}/trivy_${TRIVY_VERSION}_checksums.txt" "/tmp/${FNAME}" \
+    && tar -xzf "/tmp/${FNAME}" -C /usr/local/bin trivy \
+    && rm -f "/tmp/${FNAME}" \
     && trivy version
 
 # --- OpenShift CLI (oc) ------------------------------------------------------
@@ -715,7 +748,8 @@ RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}"
 
 # --- OpenStack CLI -----------------------------------------------------------
 ARG OPENSTACK_VENV=/opt/openstack
-ARG OPENSTACK_CLIENT_VERSION=7.1.4
+# Version should match upper constraints https://opendev.org/openstack/requirements/src/branch/master/upper-constraints.txt
+ARG OPENSTACK_CLIENT_VERSION=7.1.5
 ARG OPENSTACK_BARBICAN_VERSION=7.3.0
 RUN python -m venv ${OPENSTACK_VENV} \
     && ${OPENSTACK_VENV}/bin/pip install --no-cache-dir \
