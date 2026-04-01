@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased] — Security Hardening (Phase 9)
+
+### Security
+- **GitHub Actions hardened**: All actions pinned to immutable commit SHAs; mutable tags eliminated
+- **GITHUB_TOKEN least privilege**: Workflow-level `permissions: contents: read` enforced; write permissions scoped to specific jobs
+- **Context dumps removed**: Debug context gated behind `workflow_dispatch` input; `github.token` no longer serialized to logs
+- **Secret isolation verified**: No secrets in global `env:` blocks; GITHUB_TOKEN scoped to login steps only
+- **release.yaml reintegrated**: Manual release workflow with all security hardening applied
+- **harden-runner**: `step-security/harden-runner` integrated in all workflow jobs (egress audit mode)
+- **CODEOWNERS**: Review gates added for workflows, Dockerfile, and security config
+
+### Added
+- `.github/CODEOWNERS` — require review for security-sensitive paths
+- `.github/workflows/release.yaml` — manual release workflow with full hardening
+- `TOOLS_AND_LICENSES.md` — tools and OSS license inventory for compliance visibility
+
+<!-- Phase 9B (vulnerability remediation) items to be added when completed:
+- Trivy vulnerability remediation: X CRITICAL, Y HIGH, Z MEDIUM findings addressed
+- OS security updates: `dnf update --security` added to Dockerfile
+- Bundler frozen mode: `--frozen` enforced on all `bundle install` calls
+- `.trivyignore` created: N accepted risks documented
+- Signature verification documented
+-->
+
+---
+
 ## [4.8.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI
 
 ### Breaking Changes

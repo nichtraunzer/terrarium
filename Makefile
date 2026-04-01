@@ -53,7 +53,7 @@ define assert_file
 	test -f "$(1)" || { printf "$(RED)Error: missing file: $(1)$(RESET)\n" >&2; exit 1; }
 endef
 
-.PHONY: help verify-keys print-keys write-keys check-keys docker-build docker-build-test docker-test docker-test-exec
+.PHONY: help verify-keys print-keys write-keys check-keys docker-build docker-build-test docker-test docker-test-exec sbom
 
 # ================== Meta ==================
 help: ## Show this help (default)
@@ -139,4 +139,17 @@ docker-test-exec: ## Run bats *inside an already-running* container $(CONTAINER_
 	@mkdir -p "$(TEST_REPORT_DIR)"
 	@docker cp "$(CONTAINER_NAME):/reports" "$(TEST_REPORT_DIR)" >/dev/null 2>&1 || true
 	@printf "$(GREEN)Tests complete. Reports copied to $(TEST_REPORT_DIR)/reports$(RESET)\n"
+
+# ================== SBOM ==================
+SBOM_IMAGE ?= $(IMAGE):$(TAG)
+SBOM_DIR   ?= artifacts
+
+sbom: ## Generate SBOM for $(SBOM_IMAGE) using Syft (SPDX JSON + human-readable table)
+	@command -v syft >/dev/null 2>&1 || { printf "$(RED)Error: syft is not installed. See https://github.com/anchore/syft$(RESET)\n" >&2; exit 127; }
+	@$(assert_docker)
+	@mkdir -p "$(SBOM_DIR)"
+	@printf "$(YELLOW)Generating SBOM for $(SBOM_IMAGE)...$(RESET)\n"
+	@syft "$(SBOM_IMAGE)" -o spdx-json > "$(SBOM_DIR)/sbom-syft.json"
+	@syft "$(SBOM_IMAGE)" -o table > "$(SBOM_DIR)/sbom-syft.txt"
+	@printf "$(GREEN)SBOM written to $(SBOM_DIR)/sbom-syft.json (SPDX) and $(SBOM_DIR)/sbom-syft.txt (table)$(RESET)\n"
 
