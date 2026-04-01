@@ -1,38 +1,32 @@
 ---
 # ── Permissions policy ──────────────────────────────────────────────────────
 # Default: contents:read (workflow level).
-# packages:write — build/manifest jobs only (GHCR push).
+# packages:write — release/manifest jobs only (GHCR push).
 # ── Secret isolation policy ─────────────────────────────────────────────────
 # No secrets in global env: blocks.
 # GITHUB_TOKEN scoped to docker/login-action steps only.
-name: Build, test & publish terrarium
+name: Release terrarium (manual)
 
 on:
-  push:
-    branches: [master]
-    tags: ["v*"]
-  pull_request:
-    branches: [master]
   workflow_dispatch:
     inputs:
+      tag:
+        description: "Release tag (e.g. v4.7.0)"
+        required: true
       debug_context:
         description: "Dump GitHub contexts for debugging"
         type: boolean
         default: false
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
 ################################################################################
-# 1 ────────── Build & test (matrix: amd64 + arm64) ───────────────────────────
+# 1 ────────── Build, test & push (matrix: amd64 + arm64) ───────────────────
 ################################################################################
 jobs:
-  build:
-    name: Build & test (${{ matrix.platform }})
+  release:
+    name: Build & release (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     permissions: { contents: read, packages: write }
     strategy:
@@ -52,27 +46,15 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+        with:
+          ref: ${{ inputs.tag }}
+
       - uses: ./.github/actions/dump-context
         if: inputs.debug_context == true
+
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6.0.0
-        with:
-          images: ghcr.io/${{ github.repository }}
-          flavor: latest=auto,suffix=${{ matrix.suffix }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-
       - name: Login to GHCR
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2  # v4.0.0
         with:
           registry: ghcr.io
@@ -80,7 +62,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Gate: build through the test stage — bats must pass
-      # Uses a retry loop to handle transient 502 errors from GHA cache / GHCR
       - name: Build & run tests
         run: |
           for attempt in 1 2 3; do
@@ -100,22 +81,9 @@ jobs:
 
       # Push: build the clean final stage (no test artifacts)
       - name: Build & push final image
-        if: github.event_name != 'pull_request'
-        env:
-          META_TAGS: ${{ steps.meta.outputs.tags }}
-          META_LABELS: ${{ steps.meta.outputs.labels }}
         run: |
-          # Build --tag and --label flag arrays from newline-separated metadata outputs.
-          # Arrays preserve values that contain spaces (e.g. label descriptions).
-          tag_args=()
-          while IFS= read -r tag; do
-            [ -n "$tag" ] && tag_args+=(--tag "$tag")
-          done <<< "$META_TAGS"
-
-          label_args=()
-          while IFS= read -r label; do
-            [ -n "$label" ] && label_args+=(--label "$label")
-          done <<< "$META_LABELS"
+          IMAGE="ghcr.io/${{ github.repository }}"
+          TAG="${{ inputs.tag }}"
 
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
@@ -126,7 +94,7 @@ jobs:
               --push \
               --sbom=true \
               --cache-from type=gha,scope=${{ matrix.platform }} \
-              "${tag_args[@]}" "${label_args[@]}" \
+              --tag "${IMAGE}:${TAG}${{ matrix.suffix }}" \
               ./docker \
               && { echo "::endgroup::"; break; } \
               || { echo "::endgroup::"; echo "::warning::Push attempt $attempt failed"; }
@@ -139,8 +107,7 @@ jobs:
   ################################################################################
   manifest:
     name: Create & push multi-arch manifest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build]
+    needs: [release]
     runs-on: ubuntu-latest
     permissions: { contents: read, packages: write }
 
@@ -150,6 +117,7 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+
       - uses: ./.github/actions/dump-context
         if: inputs.debug_context == true
 
@@ -159,17 +127,13 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version tag
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - name: Generate manifest tags
+      - name: Docker metadata
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6.0.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
+            type=raw,value=${{ inputs.tag }}
             type=raw,value=latest
 
       - name: Create and push manifest
@@ -177,5 +141,5 @@ jobs:
         with:
           tags: ${{ steps.meta.outputs.tags }}
           sources: |
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}-linux-amd64
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}-linux-arm64
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}-linux-amd64
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}-linux-arm64

@@ -1,3 +1,10 @@
+# ── Permissions policy ──────────────────────────────────────────────────────
+# Default: contents:read (workflow level).
+# security-events:write — scan job only (SARIF upload).
+# packages:read — scan job only (GHCR pull).
+# ── Secret isolation policy ─────────────────────────────────────────────────
+# No secrets in global env: blocks.
+# GITHUB_TOKEN scoped to docker/login-action steps only.
 name: Scan terrarium image (Trivy)
 
 on:
@@ -11,8 +18,16 @@ on:
     types: [completed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      debug_context:
+        description: "Dump GitHub contexts for debugging"
+        type: boolean
+        default: false
   schedule:
     - cron: "0 13 * * *"
+
+permissions:
+  contents: read
 
 jobs:
   scan:
@@ -38,11 +53,16 @@ jobs:
             runner: ubuntu-22.04-arm
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d  # v2.16.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
       - uses: ./.github/actions/dump-context
+        if: inputs.debug_context == true
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2  # v4.0.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -56,7 +76,7 @@ jobs:
       # Full image scan — only when a published image is available
       - name: Trivy image scan
         if: steps.pull.outcome == 'success'
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
         with:
           image-ref: ghcr.io/${{ github.repository }}:latest-${{ matrix.suffix }}
           format: sarif
@@ -70,7 +90,7 @@ jobs:
       # (avoids building the full image which times out the runner)
       - name: Trivy filesystem scan (no published image)
         if: steps.pull.outcome != 'success'
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
         with:
           scan-type: fs
           scan-ref: docker/
@@ -82,7 +102,7 @@ jobs:
           scanners: misconfig,secret
 
       - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13  # v4.35.1
         if: always()
         with:
           sarif_file: trivy-results.sarif
