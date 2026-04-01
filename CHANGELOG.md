@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.7.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
+## [4.8.0] - 2026-04-01 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
 
 ### Security
 
