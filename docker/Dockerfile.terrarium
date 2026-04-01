@@ -655,6 +655,10 @@ RUN set -eux; \
     /usr/bin/sops --version; /usr/local/bin/age --version; dnf clean all; \
     exit 0; \
     fi; \
+    # Intentionally fail-closed: the previous `go install @latest` fallback was removed
+    # as a supply-chain hardening measure (Phase 8 T10) — unverified builds are not acceptable.
+    # If this fails, either the GitHub release is temporarily unavailable (retry the build)
+    # or the version/architecture combination doesn't have a pre-built tarball.
     echo "ERROR: Cannot install age v${AGE_VERSION} — no verified source available"; exit 1
 
 

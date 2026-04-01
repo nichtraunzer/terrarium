@@ -17,8 +17,8 @@ Please note: `json` files do not support comments. That is why you should use th
   // the "image" property defines the docker image that should be used as development container
   "image": "ghcr.io/nichtraunzer/terrarium:latest",
 
-  // this "postStartCommand" adds git completion
-  "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash",
+  // this "postStartCommand" adds git completion (pinned to a specific git commit for reproducibility)
+  "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/270e10ad6dda3379ea0da7efd11e4fbf2cd7a325/contrib/completion/git-completion.bash",
 
   // inside the "containerEnv" object we add the environment variables that should be available inside of the container
   "containerEnv": {
