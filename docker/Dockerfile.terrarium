@@ -557,7 +557,7 @@ ARG TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0
 RUN set -eux; \
     ARCH=$([[ "$TARGETARCH" = "amd64" ]] && echo "x86_64" || echo "aarch64"); \
     BASE="https://github.com/starship/starship/releases/download/v${STARSHIP_VERSION}"; \
-    FNAME="starship-${ARCH}-unknown-linux-gnu.tar.gz"; \
+    FNAME="starship-${ARCH}-unknown-linux-musl.tar.gz"; \
     fetch -o "/tmp/${FNAME}" "${BASE}/${FNAME}" \
     && verify_sha256_from_url "${BASE}/${FNAME}.sha256" "/tmp/${FNAME}" \
     && tar -xzf "/tmp/${FNAME}" -C /usr/local/bin starship \
