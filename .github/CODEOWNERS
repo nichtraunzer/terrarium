@@ -6,7 +6,7 @@
 
 # CI/CD workflows — supply-chain attack surface
 
-.github/workflows/**@tbugfinder
+.github/workflows/*         @tbugfinder
 .github/actions/**          @tbugfinder
 .github/dependabot.yml      @tbugfinder
 
