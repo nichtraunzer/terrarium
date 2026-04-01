@@ -16,5 +16,5 @@ dependencies = [
     "requests~=2.33.0",
     "simplejson~=3.19",
     "uv~=0.8.4",
-    "virtualenv~=20.32.0",
+    "virtualenv~=20.36.1",
 ]
