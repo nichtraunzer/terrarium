@@ -183,3 +183,40 @@ All binary-downloaded tools are cryptographically verified unless noted:
 > production use but restricts offering a competing hosted service. Review the
 > [BUSL-1.1 FAQ](https://www.hashicorp.com/license-faq) for your use case.
 > OpenTofu (MPL-2.0) is available as a permissively-licensed alternative.
+
+---
+
+## Maintenance
+
+This file should be updated whenever tools are added, removed, or upgraded in
+`docker/Dockerfile.terrarium`. Use the following prompt with an AI coding
+assistant (e.g. Claude Code) to regenerate or verify the inventory:
+
+<details>
+<summary>Update prompt</summary>
+
+```text
+Read docker/Dockerfile.terrarium and TOOLS_AND_LICENSES.md. For every tool
+installed in the Dockerfile (via ARG/ENV versions, dnf, binary download, pip,
+npm, gem/Bundler, or git clone):
+
+1. Check it appears in TOOLS_AND_LICENSES.md with the correct version.
+2. Verify the SPDX license identifier is accurate (check the tool's repo).
+3. Check the Verification Status table matches how the tool is actually
+   verified in the Dockerfile (GPG, SHA256, RPM key, or not verified).
+4. Update the License Summary counts.
+5. If a tool was removed from the Dockerfile, remove it from this file.
+6. If a tool was added to the Dockerfile, add it to the appropriate section.
+
+Also cross-reference docker/Gemfile and docker/pyproject.toml for Ruby gem
+and Python package changes respectively.
+
+Output a diff of any changes needed, or confirm the file is up to date.
+```
+
+</details>
+
+For a machine-readable cross-check, run `make sbom` (requires
+[Syft](https://github.com/anchore/syft)) and compare the output against this
+file. Syft reliably detects OS/language packages but misses most
+binary-downloaded tools — this file is the authoritative source for those.
