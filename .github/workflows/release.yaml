@@ -1,6 +1,7 @@
 ---
 # ── Permissions policy ──────────────────────────────────────────────────────
 # Default: contents:read (workflow level).
+# contents:write — release job only (auto-create tag if missing).
 # packages:write — release/manifest jobs only (GHCR push).
 # ── Secret isolation policy ─────────────────────────────────────────────────
 # No secrets in global env: blocks.
@@ -28,7 +29,7 @@ jobs:
   release:
     name: Build & release (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    permissions: { contents: read, packages: write }
+    permissions: { contents: write, packages: write }
     strategy:
       fail-fast: true
       matrix:
@@ -47,7 +48,22 @@ jobs:
 
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
-          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Ensure tag exists (create on HEAD if missing)
+        run: |
+          TAG="${{ inputs.tag }}"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag '${TAG}' already exists at $(git rev-parse "refs/tags/${TAG}")"
+          else
+            echo "Tag '${TAG}' does not exist — creating on HEAD ($(git rev-parse HEAD))"
+            git tag "${TAG}"
+            # Race-safe: if the other matrix leg pushed first, fetch and continue
+            git push origin "refs/tags/${TAG}" 2>/dev/null \
+              || { echo "Tag already pushed by parallel job — fetching"; git fetch origin "refs/tags/${TAG}"; }
+          fi
+          git checkout "refs/tags/${TAG}"
 
       - uses: ./.github/actions/dump-context
         if: github.event.inputs.debug_context == 'true'
