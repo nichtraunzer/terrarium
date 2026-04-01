@@ -1,14 +1,15 @@
 GEM
   remote: https://rubygems.cinc.sh/
   specs:
-    chef-config (18.5.0)
+    chef-config (19.2.12)
       addressable
-      chef-utils (= 18.5.0)
+      chef-utils (= 19.2.12)
       fuzzyurl
       mixlib-config (>= 2.2.12, < 4.0)
       mixlib-shellout (>= 2.0, < 4.0)
+      racc
       tomlrb (~> 1.2)
-    chef-utils (18.5.0)
+    chef-utils (19.2.12)
       concurrent-ruby
     cinc-auditor-bin (5.22.55)
       inspec (= 5.22.55)
