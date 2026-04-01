@@ -1,18 +1,22 @@
 # CODEOWNERS — require review for security-sensitive paths
-#
-# Changes to these paths require explicit approval from designated reviewers.
-# Enforced via GitHub branch protection "Require review from Code Owners".
+
+# Changes to these paths require explicit approval from designated reviewers
+
+# Enforced via GitHub branch protection "Require review from Code Owners"
 
 # CI/CD workflows — supply-chain attack surface
-.github/workflows/**        @nichtraunzer
-.github/actions/**          @nichtraunzer
-.github/dependabot.yml      @nichtraunzer
+
+.github/workflows/**@tbugfinder
+.github/actions/**          @tbugfinder
+.github/dependabot.yml      @tbugfinder
 
 # Container build — dependency graph, verification, runtime security
-docker/Dockerfile.terrarium @nichtraunzer
-docker/Gemfile              @nichtraunzer
-docker/Gemfile.lock         @nichtraunzer
+
+docker/Dockerfile.terrarium @tbugfinder
+docker/Gemfile              @tbugfinder
+docker/Gemfile.lock         @tbugfinder
 
 # Security configuration
-.github/CODEOWNERS          @nichtraunzer
-.trivyignore                @nichtraunzer
+
+.github/CODEOWNERS          @tbugfinder
+.trivyignore                @tbugfinder
