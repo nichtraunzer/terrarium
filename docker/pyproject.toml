@@ -15,6 +15,6 @@ dependencies = [
     "python-hcl2~=2.0",
     "requests~=2.33.0",
     "simplejson~=3.19",
-    "uv~=0.8.4",
+    "uv~=0.9.6",
     "virtualenv~=20.36.1",
 ]
