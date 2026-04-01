@@ -3,3 +3,5 @@ repomix-output.xml
 # ignore all vendor folders in root and subdirectories
 *vendor/*
 docker/vendor/*
+# SBOM and scan artifacts (generated locally, not committed)
+artifacts/
