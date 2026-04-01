@@ -1618,7 +1618,7 @@ GEM
     connection_pool (3.0.2)
     cookstyle (7.32.8)
       rubocop (= 1.25.1)
-    csv (3.3.0)
+    csv (3.3.5)
     declarative (0.0.20)
     delegate (0.3.1)
     diff-lcs (1.5.1)
