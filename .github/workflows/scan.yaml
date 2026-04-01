@@ -1,70 +1,109 @@
-name: Scan terrarium image using trivy
+# ── Permissions policy ──────────────────────────────────────────────────────
+# Default: contents:read (workflow level).
+# security-events:write — scan job only (SARIF upload).
+# packages:read — scan job only (GHCR pull).
+# ── Secret isolation policy ─────────────────────────────────────────────────
+# No secrets in global env: blocks.
+# GITHUB_TOKEN scoped to docker/login-action steps only.
+name: Scan terrarium image (Trivy)
+
 on:
   push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  # Also run after the build workflow completes (image may now be in GHCR)
+  workflow_run:
+    workflows: ["Build, test & publish terrarium"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
+    inputs:
+      debug_context:
+        description: "Dump GitHub contexts for debugging"
+        type: boolean
+        default: false
   schedule:
     - cron: "0 13 * * *"
 
-env:
-  # github.repository as <account>/<repo>
-  IMAGE_BASE: ${{ github.repository }}
+permissions:
+  contents: read
 
 jobs:
   scan:
+    name: Scan (${{ matrix.platform }})
+    # Skip if the triggering workflow failed (images weren't pushed)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
-      security-events: write # allow github/codeql-action/upload-sarif
-    name: Scan for Security Vulnerabilities
-    # if: ${{ github.repository == 'nichtraunzer/terrarium' }}
-    runs-on: ubuntu-22.04
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            suffix: linux-amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            suffix: linux-arm64
+            runner: ubuntu-24.04-arm
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - uses: ./.github/actions/dump-context
-
-      - name: Create public folder
-        run: |
-          mkdir -p public/
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
-          image-ref: ghcr.io/${{ env.IMAGE_BASE }}:latest
-          format: "sarif"
-          output: "public/trivy-results.sarif"
+          egress-policy: audit
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: ./.github/actions/dump-context
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.debug_context == 'true'
+
+      - name: Login to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Try to pull published image
+        id: pull
+        continue-on-error: true
+        run: docker pull "ghcr.io/${{ github.repository }}:latest-${{ matrix.suffix }}"
+
+      # Full image scan — only when a published image is available
+      - name: Trivy image scan
+        if: steps.pull.outcome == 'success'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:latest-${{ matrix.suffix }}
+          format: sarif
+          output: trivy-results.sarif
           exit-code: "1"
           ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      # Filesystem scan of Dockerfile + config — when no image is available
+      # (avoids building the full image which times out the runner)
+      - name: Trivy filesystem scan (no published image)
+        if: steps.pull.outcome != 'success'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
-          sarif_file: "public/trivy-results.sarif"
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        if: always()
-        continue-on-error: true
-        with:
-          image-ref: "ghcr.io/${{ github.repository_owner }}/terrarium:latest"
-          format: "template"
-          template: "@/contrib/html.tpl"
-          output: "public/index.html"
-          exit-code: "0"
+          scan-type: fs
+          scan-ref: docker/
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: "1"
           ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          severity: CRITICAL,HIGH,MEDIUM
+          scanners: misconfig,secret
 
-      #- name: Save scan results to github pages
-      #  uses: peaceiris/actions-gh-pages@v3
-      #  #if: ${{ github.ref == 'refs/heads/main' }}
-      #  if: always()
-      #  with:
-      #    github_token: ${{ secrets.GITHUB_TOKEN }}
-      #    publish_dir: ./public
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
         with:
-          sarif_file: "public/trivy-results.sarif"
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ matrix.suffix }}

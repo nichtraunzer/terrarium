@@ -1,24 +1,92 @@
 # Changelog
 
-## 2025-08-22 PR #46 Make Terrarium image UID‑agnostic via stable devtools group; fix Ruby toolchain permissions & PATH for Dev Containers
+## [4.7.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
 
-https://github.com/nichtraunzer/terrarium/pull/46
+### Security
+
+- **GitHub Actions hardened**: All actions pinned to immutable commit SHAs; mutable tags eliminated
+- **GITHUB_TOKEN least privilege**: Workflow-level `permissions: contents: read` enforced; write permissions scoped to specific jobs
+- **Context dumps removed**: Debug context gated behind `workflow_dispatch` input; `github.token` no longer serialized to logs
+- **Secret isolation verified**: No secrets in global `env:` blocks; GITHUB_TOKEN scoped to login steps only
+- **release.yaml reintegrated**: Manual release workflow with all security hardening applied
+- **harden-runner**: `step-security/harden-runner` integrated in all workflow jobs (egress audit mode)
+- **CODEOWNERS**: Review gates added for workflows, Dockerfile, and security config
+
+### Breaking Changes
+
+- **tfsec removed, replaced by Trivy** — if you reference `tfsec` in scripts/CI, replace with `trivy fs --scanners misconfig`
+- **Consul removed** — no longer bundled; install separately if needed
+- **Deprecated tool versions removed:** old Terraform 1.4.6, Bundler 2.4.13
+
+### Added
+
+- OpenTofu 1.11.5 via tenv (`OPENTOFU_VERSION` env var, `tenv tofu install/use`)
+- Trivy 0.69.3 (IaC security scanner, replaces deprecated tfsec)
+- GCP CLI (`gcloud`) via Google Cloud SDK yum repo
+- `.github/CODEOWNERS` — require review for security-sensitive paths
+- `.github/workflows/release.yaml` — manual release workflow with full hardening
+- `TOOLS_AND_LICENSES.md` — tools and OSS license inventory for compliance visibility
+
+### Upgraded
+
+- Python 3.12.11 → 3.13.12 (via pyenv)
+- Ruby 3.4.1 → 3.4.9 (via rbenv)
+- Bundler 2.7.1 → 2.7.2
+- Node.js 24.5.0 → 24.14.0
+- Go 1.24.6 → 1.26.1
+- tenv 1.2.0 → 4.9.3
+- Terraform default 1.12.2 → 1.14.7
+- Packer 1.14.1 → 1.15.0
+- kubectl 1.33.3 → 1.35.3
+- Helm 3.18.4 → 3.20.1
+- sops 3.10.2 → 3.12.2 (repo moved from mozilla/sops to getsops/sops)
+- age 1.1.0 → 1.3.1
+- tflint 0.58.1 → 0.61.0
+- terraform-docs v0.20.0 → v0.21.0
+- starship 1.23.0 → 1.24.2
+- zoxide 0.9.4 → 0.9.9
+- bats-core 1.11.0 → 1.13.0
+- yq 4.47.1 → 4.52.4
+- Task 3.43.1 → 3.49.1
+
+### Removed
+
+- tfsec (EOL — use Trivy instead)
+- Consul (no longer used internally)
+
+---
+
+## 2026-03-23 — refactor: move terraform/docker/ → docker/ ( PR #42 )
 
 ### Changed
+
+- Moved all build artifacts from `terraform/docker/` to `docker/` to simplify
+  the repo layout and remove the misleading `terraform/` prefix.
+- Updated all references in Makefile, GitHub Actions workflows, dependabot config,
+  .gitignore, README, and CHANGELOG.
+
+---
+
+## 2025-08-22 PR #46 Make Terrarium image UID‑agnostic via stable devtools group; fix Ruby toolchain permissions & PATH for Dev Containers
+
+<https://github.com/nichtraunzer/terrarium/pull/46>
+
+### Changed
+
 - Image is now **UID‑agnostic** by introducing a stable `devtools` group (`DEVTOOLS_GID`, default `2001`) and applying setgid + group‑writable perms to `/opt/bundle` and `/opt/rbenv` (optional: `/opt/pyenv`, `/opt/tenv`).
 - Toolchain PATH and `rbenv` init are loaded for **login and non‑login shells** via `/etc/profile.d/10-terrarium-path.sh` and `/etc/bashrc.d/10-terrarium-path.sh`.
 
 ### Added
+
 - Cooperative `umask 0002` for dev shells to keep group‑writable files.
 
 ### Fixed
+
 - `kitchen` / `cinc-auditor` reliably resolve on PATH; **no more Dev Container `postCreateCommand` chowns** required. Downstream users just add their user to `devtools` (`usermod -aG devtools <user>`).
-
-
 
 ## 2025-08-18 PR #44 feat(tools): added kubectl and helm with validation tests
 
-https://github.com/nichtraunzer/terrarium/pull/44
+<https://github.com/nichtraunzer/terrarium/pull/44>
 
 ### Added
 
@@ -71,7 +139,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ---
 
-## 2024-10-18 Update Tools:
+## 2024-10-18 Update Tools
 
 - ruby 3.3.4
 - bundler
@@ -88,7 +156,7 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ---
 
-## 2023-04-28 Update Tools:
+## 2023-04-28 Update Tools
 
 - ruby 3.2.2
 - bundler
@@ -102,4 +170,4 @@ https://github.com/nichtraunzer/terrarium/pull/44
 
 ---
 
-## 2022-03-15 Initial release.
+## 2022-03-15 Initial release

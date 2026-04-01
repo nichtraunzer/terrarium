@@ -17,13 +17,37 @@ Please note: `json` files do not support comments. That is why you should use th
   // the "image" property defines the docker image that should be used as development container
   "image": "ghcr.io/nichtraunzer/terrarium:latest",
 
-  // this "postStartCommand" adds git completion and beautifies the git prompt
-  "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash && wget -O $HOME/.bashrc https://gist.githubusercontent.com/Nilpo/26754d178f6690046893/raw/453fc3425305c6242871314c351778c17b96afd0/.bashrc && source ~/.bashrc",
+  // this "postStartCommand" adds git completion (pinned to a specific git commit for reproducibility)
+  "postStartCommand" : "wget -O $HOME/.git-completion.bash https://raw.githubusercontent.com/git/git/270e10ad6dda3379ea0da7efd11e4fbf2cd7a325/contrib/completion/git-completion.bash",
 
   // inside the "containerEnv" object we add the environment variables that should be available inside of the container
   "containerEnv": {
     "AWS_DEFAULT_REGION": "eu-west-1",
     "AWS_REGION": "eu-west-1"
+  }
+}
+```
+
+### Customizing the Starship prompt
+
+The base image ships with a default `starship.toml` configuration at
+`~/.config/starship.toml` and initializes both starship and zoxide
+automatically.
+
+To override the default prompt, place your own `starship.toml` alongside
+this `devcontainer.json` and use a `Dockerfile` to copy it:
+
+```dockerfile
+FROM ghcr.io/nichtraunzer/terrarium:latest
+COPY starship.toml /home/terrarium/.config/starship.toml
+```
+
+Then reference the Dockerfile from your `devcontainer.json`:
+
+```jsonc
+{
+  "build": {
+    "dockerfile": "Dockerfile"
   }
 }
 ```

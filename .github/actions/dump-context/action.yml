@@ -1,14 +1,23 @@
 # .github/actions/dump-context/action.yml
 name: "Dump GitHub Contexts"
-description: "Echo out github / job / steps / runner / strategy / matrix contexts"
+description: "Echo filtered github / job / steps / runner / strategy / matrix contexts (no secrets)"
 runs:
   using: "composite"
   steps:
-    - name: Dump GitHub context
+    - name: Dump GitHub context (filtered — excludes token)
       shell: bash
-      env:
-        GITHUB_CONTEXT: ${{ toJson(github) }}
-      run: echo "$GITHUB_CONTEXT"
+      run: |
+        echo "repository: ${{ github.repository }}"
+        echo "repository_owner: ${{ github.repository_owner }}"
+        echo "event_name: ${{ github.event_name }}"
+        echo "ref: ${{ github.ref }}"
+        echo "ref_name: ${{ github.ref_name }}"
+        echo "sha: ${{ github.sha }}"
+        echo "actor: ${{ github.actor }}"
+        echo "workflow: ${{ github.workflow }}"
+        echo "run_id: ${{ github.run_id }}"
+        echo "run_number: ${{ github.run_number }}"
+        echo "server_url: ${{ github.server_url }}"
 
     - name: Dump job context
       shell: bash
@@ -39,23 +48,3 @@ runs:
       env:
         MATRIX_CONTEXT: ${{ toJson(matrix) }}
       run: echo "$MATRIX_CONTEXT"
-
-    - name: Dump environment variables
-      shell: bash
-      run: |
-        echo "GITHUB_REPOSITORY: ${{ github.repository }}"
-        echo "GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}"
-        echo "GITHUB_EVENT_NAME: ${{ github.event_name }}"
-        echo "GITHUB_EVENT_PATH: ${{ github.event_path }}"
-        echo "GITHUB_WORKFLOW: ${{ github.workflow }}"
-        echo "GITHUB_SHA: ${{ github.sha }}"
-        echo "GITHUB_REF: ${{ github.ref }}"
-        echo "GITHUB_REF_NAME: ${{ github.ref_name }}"
-        echo "GITHUB_REF_TYPE: ${{ github.ref_type }}"
-        echo "GITHUB_HEAD_REF: ${{ github.head_ref }}"
-        echo "GITHUB_BASE_REF: ${{ github.base_ref }}"
-        echo "GITHUB_ACTOR: ${{ github.actor }}"
-        echo "GITHUB_WORKSPACE: ${{ github.workspace }}"
-        echo "GITHUB_RUN_ID: ${{ github.run_id }}"
-        echo "GITHUB_RUN_NUMBER: ${{ github.run_number }}"
-        echo "GITHUB_SERVER_URL: ${{ github.server_url }}"

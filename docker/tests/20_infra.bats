@@ -5,8 +5,6 @@ load 'test_helper/common.bash'
 
 # bats file_tags=infra
 
-@test "Consul CLI" { check_binary consul; }
-
 @test "Packer CLI" { check_binary packer; }
 
 @test "Sops CLI" { check_binary sops; }
@@ -20,3 +18,11 @@ load 'test_helper/common.bash'
   [ -s "$tempfile" ]
   rm -f "$tempfile"
 }
+
+
+# xorriso was built on Rocky and copied into UBI with its runtime libs.
+@test "xorriso present" {
+  run xorriso -version
+  assert_success
+}
+

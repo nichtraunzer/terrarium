@@ -17,4 +17,13 @@ load 'test_helper/common.bash'
   assert_success
 }
 
-@test "tfsec Installed" { check_binary tfsec; }
+@test "OpenTofu via tenv works" {
+  run tenv tofu list
+  assert_success
+}
+
+@test "tofu version runs" {
+  run tofu -version
+  assert_success
+}
+

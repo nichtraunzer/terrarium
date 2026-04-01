@@ -1,71 +1,184 @@
 ---
-name: Release images manually
+# ── Permissions policy ──────────────────────────────────────────────────────
+# Default: contents:read (workflow level).
+# contents:write — release job only (auto-create tag if missing).
+# packages:write — release/manifest jobs only (GHCR push).
+# ── Secret isolation policy ─────────────────────────────────────────────────
+# No secrets in global env: blocks.
+# GITHUB_TOKEN scoped to docker/login-action steps only.
+name: Release terrarium (manual)
+
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Which tag to push (e.g. v1.2.3)"
+        description: "Release tag (e.g. v4.7.0)"
         required: true
-        default: "latest"
+      debug_context:
+        description: "Dump GitHub contexts for debugging"
+        type: boolean
+        default: false
 
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-  # github.repository as <account>/<repo>
-  IMAGE_BASE: ${{ github.repository }}
+permissions:
+  contents: read
 
+################################################################################
+# 1 ────────── Build, test & push (matrix: amd64 + arm64) ───────────────────
+################################################################################
 jobs:
-  build:
-    name: Build and release images
-    runs-on: ubuntu-latest
+  release:
+    name: Build & release (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    permissions: { contents: write, packages: write }
     strategy:
       fail-fast: true
       matrix:
-        image: ["terrarium"]
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            suffix: -linux-amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            suffix: -linux-arm64
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/dump-context
-
-      - name: Compute image tag
-        id: compute-tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            TAG=${{ github.event.release.tag_name }}
-          else
-            TAG=${{ github.event.inputs.tag }}
-          fi
-          echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Workaround: https://github.com/docker/build-push-action/issues/461
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Login against a Docker registry
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v3
+      - uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          egress-policy: audit
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Ensure tag exists (create on HEAD if missing)
+        run: |
+          TAG="${{ inputs.tag }}"
+
+          # Validate tag for both Git and Docker usage
+          if [ -z "$TAG" ]; then
+            echo "::error::Tag input must not be empty"; exit 1
+          fi
+          if [ "${#TAG}" -gt 128 ]; then
+            echo "::error::Tag '${TAG}' is too long (max 128 characters)"; exit 1
+          fi
+          case "$TAG" in
+            -*) echo "::error::Tag '${TAG}' must not start with '-'"; exit 1 ;;
+            *[!0-9A-Za-z_.-]*) echo "::error::Tag '${TAG}' contains invalid characters. Allowed: A-Z, a-z, 0-9, '_', '-', '.'"; exit 1 ;;
+          esac
+
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag '${TAG}' already exists at $(git rev-parse "refs/tags/${TAG}")"
+          else
+            echo "Tag '${TAG}' does not exist — creating on HEAD ($(git rev-parse HEAD))"
+            git tag -- "${TAG}"
+            # Race-safe: if the other matrix leg pushed first, detect and fetch; otherwise fail
+            if git push origin "refs/tags/${TAG}"; then
+              echo "Tag '${TAG}' pushed to origin"
+            else
+              echo "::warning::git push for tag '${TAG}' failed, checking if tag already exists on origin"
+              if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+                echo "Tag '${TAG}' already exists on origin (likely created by parallel job) — fetching"
+                git fetch origin "refs/tags/${TAG}"
+              else
+                echo "::error::Failed to push tag '${TAG}' to origin and tag does not exist on origin"
+                exit 1
+              fi
+            fi
+          fi
+          git checkout "refs/tags/${TAG}"
+
+      - uses: ./.github/actions/dump-context
+        if: github.event.inputs.debug_context == 'true'
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and push Docker image with Buildx
-      # https://github.com/docker/build-push-action
-      - name: Build and release Docker image
-        id: build-and-push
-        uses: docker/build-push-action@v6
+      # Gate: build through the test stage — bats must pass
+      - name: Build & run tests
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::Attempt $attempt of 3"
+            docker buildx build \
+              --file docker/Dockerfile.terrarium \
+              --target test \
+              --platform ${{ matrix.platform }} \
+              --cache-from type=gha,scope=${{ matrix.platform }} \
+              --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
+              ./docker \
+              && { echo "::endgroup::"; break; } \
+              || { echo "::endgroup::"; echo "::warning::Build attempt $attempt failed"; }
+            if [ "$attempt" -eq 3 ]; then echo "::error::All 3 build attempts failed"; exit 1; fi
+            sleep 30
+          done
+
+      # Push: build the clean final stage (no test artifacts)
+      - name: Build & push final image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}"
+          TAG="${{ inputs.tag }}"
+
+          for attempt in 1 2 3; do
+            echo "::group::Attempt $attempt of 3"
+            docker buildx build \
+              --file docker/Dockerfile.terrarium \
+              --target final \
+              --platform ${{ matrix.platform }} \
+              --push \
+              --sbom=true \
+              --cache-from type=gha,scope=${{ matrix.platform }} \
+              --tag "${IMAGE}:${TAG}${{ matrix.suffix }}" \
+              ./docker \
+              && { echo "::endgroup::"; break; } \
+              || { echo "::endgroup::"; echo "::warning::Push attempt $attempt failed"; }
+            if [ "$attempt" -eq 3 ]; then echo "::error::All 3 push attempts failed"; exit 1; fi
+            sleep 30
+          done
+
+  ################################################################################
+  # 2 ────────── Create multi‑arch manifest ────────────────────────────────────
+  ################################################################################
+  manifest:
+    name: Create & push multi-arch manifest
+    needs: [release]
+    runs-on: ubuntu-24.04
+    permissions: { contents: read, packages: write }
+
+    steps:
+      - uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
-          context: ./terraform/docker
-          file: terraform/docker/Dockerfile.${{ matrix.image }}
-          push: true
-          target: test
+          egress-policy: audit
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: ./.github/actions/dump-context
+        if: github.event.inputs.debug_context == 'true'
+
+      - uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ghcr.io/${{ github.repository }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ steps.compute-tag.outputs.image_tag }}
+            type=raw,value=${{ inputs.tag }}
+            type=raw,value=latest
+
+      - name: Create and push manifest
+        uses: int128/docker-manifest-create-action@44422a4b046d55dc036df622039ed3aec43c613c # v2.17.0
+        with:
+          tags: ${{ steps.meta.outputs.tags }}
+          sources: |
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}-linux-amd64
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}-linux-arm64
