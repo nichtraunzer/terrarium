@@ -1,6 +1,7 @@
 ---
 # ── Permissions policy ──────────────────────────────────────────────────────
 # Default: contents:read (workflow level).
+# contents:write — release job only (auto-create tag if missing).
 # packages:write — release/manifest jobs only (GHCR push).
 # ── Secret isolation policy ─────────────────────────────────────────────────
 # No secrets in global env: blocks.
@@ -28,7 +29,7 @@ jobs:
   release:
     name: Build & release (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    permissions: { contents: read, packages: write }
+    permissions: { contents: write, packages: write }
     strategy:
       fail-fast: true
       matrix:
@@ -47,7 +48,45 @@ jobs:
 
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
-          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Ensure tag exists (create on HEAD if missing)
+        run: |
+          TAG="${{ inputs.tag }}"
+
+          # Validate tag for both Git and Docker usage
+          if [ -z "$TAG" ]; then
+            echo "::error::Tag input must not be empty"; exit 1
+          fi
+          if [ "${#TAG}" -gt 128 ]; then
+            echo "::error::Tag '${TAG}' is too long (max 128 characters)"; exit 1
+          fi
+          case "$TAG" in
+            -*) echo "::error::Tag '${TAG}' must not start with '-'"; exit 1 ;;
+            *[!0-9A-Za-z_.-]*) echo "::error::Tag '${TAG}' contains invalid characters. Allowed: A-Z, a-z, 0-9, '_', '-', '.'"; exit 1 ;;
+          esac
+
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag '${TAG}' already exists at $(git rev-parse "refs/tags/${TAG}")"
+          else
+            echo "Tag '${TAG}' does not exist — creating on HEAD ($(git rev-parse HEAD))"
+            git tag -- "${TAG}"
+            # Race-safe: if the other matrix leg pushed first, detect and fetch; otherwise fail
+            if git push origin "refs/tags/${TAG}"; then
+              echo "Tag '${TAG}' pushed to origin"
+            else
+              echo "::warning::git push for tag '${TAG}' failed, checking if tag already exists on origin"
+              if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+                echo "Tag '${TAG}' already exists on origin (likely created by parallel job) — fetching"
+                git fetch origin "refs/tags/${TAG}"
+              else
+                echo "::error::Failed to push tag '${TAG}' to origin and tag does not exist on origin"
+                exit 1
+              fi
+            fi
+          fi
+          git checkout "refs/tags/${TAG}"
 
       - uses: ./.github/actions/dump-context
         if: github.event.inputs.debug_context == 'true'
