@@ -145,7 +145,11 @@ SBOM_IMAGE ?= $(IMAGE):$(TAG)
 SBOM_DIR   ?= artifacts
 
 sbom: ## Generate SBOM for $(SBOM_IMAGE) using Syft (SPDX JSON + human-readable table)
-	@command -v syft >/dev/null 2>&1 || { printf "$(RED)Error: syft is not installed. See https://github.com/anchore/syft$(RESET)\n" >&2; exit 127; }
+	@command -v syft >/dev/null 2>&1 || { \
+		printf "$(YELLOW)syft not found — installing via official installer...$(RESET)\n"; \
+		curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin; \
+		command -v syft >/dev/null 2>&1 || { printf "$(RED)Error: syft installation failed$(RESET)\n" >&2; exit 127; }; \
+	}
 	@$(assert_docker)
 	@mkdir -p "$(SBOM_DIR)"
 	@printf "$(YELLOW)Generating SBOM for $(SBOM_IMAGE)...$(RESET)\n"
