@@ -16,10 +16,6 @@ on:
       tag:
         description: "Release tag (e.g. v4.7.0)"
         required: true
-      update_latest:
-        description: "Update the 'latest' tag (auto: false for pre-releases)"
-        type: boolean
-        default: true
       debug_context:
         description: "Dump GitHub contexts for debugging"
         type: boolean
@@ -193,10 +189,6 @@ jobs:
             IS_PRERELEASE="false"
             # Auto-detect pre-release from tag name
             if [[ "$TAG" =~ -(pre|alpha|beta|rc) ]]; then
-              IS_PRERELEASE="true"
-            fi
-            # Allow manual override via update_latest input
-            if [ "${{ inputs.update_latest }}" = "false" ]; then
               IS_PRERELEASE="true"
             fi
           fi
