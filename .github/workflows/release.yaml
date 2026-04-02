@@ -110,12 +110,14 @@ jobs:
       # Gate: build through the test stage — bats must pass
       - name: Build & run tests
         run: |
+          GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
               --target test \
               --platform ${{ matrix.platform }} \
+              --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
               ./docker \
@@ -134,6 +136,7 @@ jobs:
           else
             TAG="${{ inputs.tag }}"
           fi
+          GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
 
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
@@ -143,6 +146,7 @@ jobs:
               --platform ${{ matrix.platform }} \
               --push \
               --sbom=true \
+              --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --tag "${IMAGE}:${TAG}${{ matrix.suffix }}" \
               ./docker \

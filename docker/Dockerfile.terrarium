@@ -45,6 +45,9 @@ RUN git clone https://github.com/rbenv/rbenv.git ${RBENV_ROOT} \
     && RBENV_VERSION=${RUBY_VERSION} gem install bundler -v ${BUNDLER_VERSION}
 
 # Install the repo Gemfile into /opt/bundle (no direct gem installs of kitchen/cinc!)
+# GEMFILE_HASH busts the GHA build cache when Gemfile.lock changes
+# (external cache sources don't always detect COPY content changes).
+ARG GEMFILE_HASH=""
 COPY Gemfile Gemfile.lock /tmp/gems/
 RUN RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME} \
     && RBENV_VERSION=${RUBY_VERSION} bash -lc "cd /tmp/gems \
@@ -420,16 +423,14 @@ COPY Gemfile Gemfile.lock /opt/terrarium-gems/
 RUN chmod -R a+rX /opt/terrarium-gems
 
 # Ensure /opt/bundle matches /opt/terrarium-gems/Gemfile.lock
-# Uses non-frozen install so the lockfile wins over stale build-cache gems,
-# then re-enables frozen mode for runtime wrapper scripts.
 ENV BUNDLE_SILENCE_ROOT_WARNING=1
 RUN set -eux; \
     export RBENV_VERSION="${RUBY_VERSION}" \
     BUNDLE_GEMFILE="/opt/terrarium-gems/Gemfile" \
-    BUNDLE_PATH="${GEM_HOME}"; \
+    BUNDLE_PATH="${GEM_HOME}" \
+    BUNDLE_FROZEN="true"; \
     bundle check || bundle install --jobs=6 --retry=3; \
     bundle clean --force
-ENV BUNDLE_FROZEN=true
 
 # xorriso (from buildlang)
 COPY --from=buildlang /usr/bin/xorriso /usr/bin/xorriso
