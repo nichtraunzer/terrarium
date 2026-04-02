@@ -8,6 +8,8 @@ compliance with their organization's policies.
 > For a machine-readable SBOM, see the BuildKit SBOM attestation attached to
 > published images (`--sbom=true`), or generate one locally with
 > `make sbom` (requires [Syft](https://github.com/anchore/syft)).
+>
+> Please also see the [Maintenance](#maintenance) section at the end of this file for instructions on how to keep this inventory up to date when making changes to the Dockerfile or OS packages etc.
 
 ---
 

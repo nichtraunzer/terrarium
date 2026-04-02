@@ -1,6 +1,24 @@
 # Changelog
 
-## [4.8.0] - 2026-04-01 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
+## [4.8.1] - 2026-04-02 — Release workflow hardening, scan optimization, cinc-auditor update
+
+### Fixed
+
+- **`latest` tag no longer updated on pre-releases**: Release workflow now auto-detects pre-release tags (`-pre`, `-alpha`, `-beta`, `-rc`) and skips `latest` tag update. Also respects GitHub Release `prerelease` flag for event-triggered releases.
+- **Manual override for `latest` tag**: Added `update_latest` input to `workflow_dispatch` for operator control.
+- **Scan workflow trigger optimization**: Restricted `push` and `pull_request` triggers to path-filtered changes (`docker/**`, `.github/workflows/scan.yaml`). Changed schedule from daily to weekly (Monday 06:00 UTC). Added `release: [published]` trigger.
+
+### Added
+
+- `release` event trigger (`types: [published]`) on release workflow — supports GitHub Releases in addition to manual dispatch.
+
+### Upgraded
+
+- cinc-auditor-bin 5.22.55 → 5.22.95 (with inspec/inspec-core 5.22.95)
+
+---
+
+## [4.8.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
 
 ### Security
 
