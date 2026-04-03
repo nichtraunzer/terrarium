@@ -1,20 +1,44 @@
 # Changelog
 
-## [4.8.1] - 2026-04-02 — Release workflow hardening, scan optimization, cinc-auditor update
+## [4.8.1] - 2026-04-03 — Dockerfile hardening, image slimdown, CI improvements, test reorganisation
 
-### Fixed
+### Image slimdown (~350 MB reduction)
 
-- **`latest` tag no longer updated on pre-releases**: Release workflow now auto-detects pre-release tags (`-pre`, `-alpha`, `-beta`, `-rc`) and skips `latest` tag update. Also respects GitHub Release `prerelease` flag for event-triggered releases.
-- **Manual override for `latest` tag**: Added `update_latest` input to `workflow_dispatch` for operator control.
-- **Scan workflow trigger optimization**: Restricted `push` and `pull_request` triggers to path-filtered changes (`docker/**`, `.github/workflows/scan.yaml`). Changed schedule from daily to weekly (Monday 06:00 UTC). Added `release: [published]` trigger.
+- **Build-dep removal**: Compiler toolchain (gcc, gcc-c++, cpp, binutils, autoconf, automake, libtool, kernel-headers, `*-devel` packages) removed from final image after native extensions are compiled.
+- **Documentation purge**: `/usr/share/doc`, `/usr/share/man`, `/usr/share/info` removed from final image.
+- **dnf `tsflags=nodocs`**: Prevents future `dnf install` from adding documentation.
+- **Locale cleanup**: Non-`en_US` locale data and stale locale archive template removed.
+- **`.git` metadata stripped**: pyenv and rbenv `.git` directories removed in buildlang stage before COPY into builder.
+- **GPG temp files cleaned**: `/opt/keys/tmp` removed after build-time signature verification.
+- Retains make, git, openssl, curl, sudo, and all runtime libraries.
 
-### Added
+### Dockerfile refactoring
 
-- `release` event trigger (`types: [published]`) on release workflow — supports GitHub Releases in addition to manual dispatch.
+- **Centralised version ARGs**: All tool versions defined in a single alphabetically sorted global ARG block at the top of the Dockerfile. Builder ENV block now references `${VAR}` instead of hardcoded values.
+- **Pinned base images**: `rockylinux:9.3` (buildlang), `ubi9/ubi:9.5` (builder) for build determinism.
+- **Bundle cache reconciliation**: Builder stage runs non-frozen `bundle install` first (reconciles stale GHA cache), then `BUNDLE_FROZEN=true bundle check` as the integrity gate.
+- Bumped Bundler 2.7.2 → 4.0.9.
+
+### CI/CD improvements
+
+- **Release workflow**: Added `release: [published]` event trigger. Conditional `latest` tag auto-detects pre-release tags (`-pre`, `-alpha`, `-beta`, `-rc`) and skips `latest` update.
+- **Scan workflow**: Path-filtered `push`/`pull_request` triggers (`docker/**`, scan.yaml). Schedule changed from daily to weekly (Monday 06:00 UTC). Added `release: [published]` trigger.
+- **GEMFILE_HASH cache-buster**: SHA256 of Gemfile.lock passed as build arg to invalidate stale GHA buildlang cache.
+- **Pinned syft**: Makefile sbom target uses syft v1.42.3 with SHA256 checksum verification (replaces curl-pipe-sh installer).
+
+### Test suite reorganisation
+
+- `00_core.bats` → `00_os.bats` — scoped to OS family, devtools group, permissions, PATH, GNUPGHOME.
+- New `01_common_dev_tools.bats` — make, git, openssl, curl, sudo, jq, parallel, Go.
+- New `95_slimdown.bats` — negative assertions confirming build deps (gcc/g++/cpp) and docs are removed.
+- Moved tests to logical homes: trivy → `20_infra.bats`, oc → `60_k8s.bats`, Go → `01_common_dev_tools.bats`.
+- Added pip test to `10_python.bats`.
+- All 55 original tests preserved; 12 new tests added (67 total).
 
 ### Upgraded
 
-- cinc-auditor-bin 5.22.55 → 5.22.95 (with inspec/inspec-core 5.22.95)
+- cinc-auditor-bin 5.22.55 → 5.23.6 (with inspec/inspec-core 5.23.6)
+- Gemfile.lock regenerated for Ruby 3.4.9 + Bundler 4.0.9
 
 ---
 
