@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Terrarium user and devtools group moved into builder stage** — the `terrarium` user (UID 1001), `devtools` group (GID 2001), and bats test helpers (bats-support/bats-assert) were previously created only in the `test` stage. The published image (`final`) shipped without a user entry in `/etc/passwd`, breaking downstream consumers. All three are now in the `builder` stage so every downstream stage inherits them.
+- **Removed empty `final` stage** — `builder` is now the complete published image with tests, user, and helpers baked in. The `test` stage remains as a build-time gate that runs bats to validate the image.
+- Tests now ship in the published image for runtime health checks — downstream consumers can run `bats /home/terrarium/tests` to verify the container after deployment.
+
+### Changed
+
+- Bumped transitive gem dependencies: `csv` 3.3.0 → 3.3.5, `mutex_m` 0.2.0 → 0.3.0.
+
 ## [4.8.1] - 2026-04-03 — Dockerfile hardening, image slimdown, CI improvements, test reorganisation
 
 ### Image slimdown (~350 MB reduction)
