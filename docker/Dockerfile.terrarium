@@ -915,28 +915,25 @@ RUN set -eux \
     && rm -rf /usr/lib/locale/locale-archive.tmpl \
     && rm -rf /opt/keys/tmp
 
+# --- User & group setup (must be in builder so published image includes them) ---
+ARG DEVTOOLS_GID=2001
+RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
+    && useradd -u 1001 -d /home/terrarium -s /bin/bash terrarium || true \
+    && usermod -aG devtools terrarium
+
+# --- Tests & test helpers (ship in published image for runtime health checks) ---
 COPY tests /home/terrarium/tests
-
-WORKDIR $HOME
-CMD ["/bin/bash", "-i", "-l"]
-
-# ================= Stage 2 — test =================
-FROM builder AS test
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN install -d -m 0755 /home/terrarium/tests/test_helper \
     && rm -rf /home/terrarium/tests/test_helper/bats-support /home/terrarium/tests/test_helper/bats-assert \
     && git clone --depth 1 https://github.com/bats-core/bats-support.git /home/terrarium/tests/test_helper/bats-support \
     && git clone --depth 1 https://github.com/bats-core/bats-assert.git   /home/terrarium/tests/test_helper/bats-assert
-RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
-ARG DEVTOOLS_GID=2001
-RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
-    && useradd -u 1001 terrarium || true \
-    && usermod -aG devtools terrarium
-USER root
-RUN chown -R terrarium:devtools /home/terrarium/tests
+RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \; \
+    && chown -R terrarium:devtools /home/terrarium/tests
+
+WORKDIR $HOME
+CMD ["/bin/bash", "-i", "-l"]
+
+# ================= Stage 2 — test (build-time gate) =================
+FROM builder AS test
 USER terrarium
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)
-
-# ================= Stage 3 — final =================
-FROM builder AS final
-CMD ["/bin/bash"]
