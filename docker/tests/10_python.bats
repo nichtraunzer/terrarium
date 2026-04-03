@@ -24,6 +24,11 @@ load 'test_helper/common.bash'
   check_binary pyenv
 }
 
+@test "pip is installed" {
+  run bash -lc 'pip --version'
+  assert_success
+}
+
 @test "pre-commit is installed" {
   check_binary pre-commit
 }

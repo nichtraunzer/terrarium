@@ -82,6 +82,10 @@ RUN RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME} \
     && bundle binstubs bundler --force" \
     && rm -rf /root/.bundle/cache
 
+# ---- Strip .git metadata from language managers (saves ~13 MB in final image) ----
+RUN rm -rf ${PYENV_ROOT}/.git ${PYENV_ROOT}/plugins/*/.git \
+           ${RBENV_ROOT}/.git ${RBENV_ROOT}/plugins/*/.git
+
 # ================= Stage 1 — builder (UBI 9) =================
 FROM registry.access.redhat.com/ubi9/ubi:${UBI9_VERSION} AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -258,7 +262,7 @@ RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVAR
 RUN . /etc/os-release && echo "Base image: $PRETTY_NAME" \
     && dnf -y update \
     && dnf clean all
-RUN printf '\nmax_parallel_downloads=10\nretries=10\n' >> /etc/dnf/dnf.conf
+RUN printf '\nmax_parallel_downloads=10\nretries=10\ntsflags=nodocs\n' >> /etc/dnf/dnf.conf
 
 # Base utils
 RUN dnf -y install dnf-plugins-core \
@@ -892,6 +896,24 @@ RUN set -eux; \
 # which lives under $HOME and follows the UID remap automatically.
 RUN install -d -m 0700 -o 1001 -g 0 /home/terrarium/.gnupg
 ENV GNUPGHOME=/home/terrarium/.gnupg
+
+# --- Image slimdown: remove build-only deps, docs, and locale data -----------
+# Build deps (gcc, *-devel, etc.) were needed to compile Python/Ruby in the
+# buildlang stage and for bundle install native extensions above. They are no
+# longer needed at runtime — consumers use pre-built interpreters and gems.
+# Savings: ~210 MB (build deps) + ~138 MB (docs/man/locale) ≈ 350 MB.
+RUN set -eux \
+    && dnf -y remove gcc gcc-c++ cpp binutils autoconf automake libtool \
+        kernel-headers glibc-devel libstdc++-devel \
+        openssl-devel bzip2-devel libffi-devel sqlite-devel \
+        xz-devel zlib-devel libxcrypt-devel \
+    && dnf -y autoremove \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
+    && find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en_US' -exec rm -rf {} + \
+    && rm -rf /usr/lib/locale/locale-archive.tmpl \
+    && rm -rf /opt/keys/tmp
 
 COPY tests /home/terrarium/tests
 

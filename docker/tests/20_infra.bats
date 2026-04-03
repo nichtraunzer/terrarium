@@ -26,3 +26,10 @@ load 'test_helper/common.bash'
   assert_success
 }
 
+# --- Moved from 90_extras.bats ----------------------------------------------
+
+@test "trivy is installed" {
+  run trivy version
+  assert_success
+}
+
