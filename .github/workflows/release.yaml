@@ -142,7 +142,7 @@ jobs:
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
-              --target final \
+              --target test \
               --platform ${{ matrix.platform }} \
               --push \
               --sbom=true \
