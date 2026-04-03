@@ -454,15 +454,19 @@ COPY --from=buildlang /opt/bundle /opt/bundle
 COPY Gemfile Gemfile.lock /opt/terrarium-gems/
 RUN chmod -R a+rX /opt/terrarium-gems
 
-# Ensure /opt/bundle matches /opt/terrarium-gems/Gemfile.lock
+# Reconcile /opt/bundle (from buildlang cache) with the committed lockfile.
+# Step 1: non-frozen install — brings gems in line with the lockfile even when
+#         the buildlang stage was served from a stale GHA build cache.
+# Step 2: frozen check — verifies the result matches the lockfile exactly,
+#         preserving supply-chain integrity.
 ENV BUNDLE_SILENCE_ROOT_WARNING=1
 RUN set -eux; \
     export RBENV_VERSION="${RUBY_VERSION}" \
     BUNDLE_GEMFILE="/opt/terrarium-gems/Gemfile" \
-    BUNDLE_PATH="${GEM_HOME}" \
-    BUNDLE_FROZEN="true"; \
-    bundle check || bundle install --jobs=6 --retry=3; \
-    bundle clean --force
+    BUNDLE_PATH="${GEM_HOME}"; \
+    bundle install --jobs=6 --retry=3; \
+    bundle clean --force; \
+    BUNDLE_FROZEN=true bundle check
 
 # xorriso (from buildlang)
 COPY --from=buildlang /usr/bin/xorriso /usr/bin/xorriso
