@@ -1,6 +1,60 @@
 # Changelog
 
-## [4.8.0] - 2026-04-01 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
+## [Unreleased]
+
+### Fixed
+
+- **Terrarium user and devtools group moved into builder stage** — the `terrarium` user (UID 1001), `devtools` group (GID 2001), and bats test helpers (bats-support/bats-assert) were previously created only in the `test` stage. The published image (`final`) shipped without a user entry in `/etc/passwd`, breaking downstream consumers. All three are now in the `builder` stage so every downstream stage inherits them.
+- **Removed empty `final` stage** — `builder` is now the complete published image with tests, user, and helpers baked in. The `test` stage remains as a build-time gate that runs bats to validate the image.
+- Tests now ship in the published image for runtime health checks — downstream consumers can run `bats /home/terrarium/tests` to verify the container after deployment.
+
+### Changed
+
+- Bumped transitive gem dependencies: `csv` 3.3.0 → 3.3.5, `mutex_m` 0.2.0 → 0.3.0.
+
+## [4.8.1] - 2026-04-03 — Dockerfile hardening, image slimdown, CI improvements, test reorganisation
+
+### Image slimdown (~350 MB reduction)
+
+- **Build-dep removal**: Compiler toolchain (gcc, gcc-c++, cpp, binutils, autoconf, automake, libtool, kernel-headers, `*-devel` packages) removed from final image after native extensions are compiled.
+- **Documentation purge**: `/usr/share/doc`, `/usr/share/man`, `/usr/share/info` removed from final image.
+- **dnf `tsflags=nodocs`**: Prevents future `dnf install` from adding documentation.
+- **Locale cleanup**: Non-`en_US` locale data and stale locale archive template removed.
+- **`.git` metadata stripped**: pyenv and rbenv `.git` directories removed in buildlang stage before COPY into builder.
+- **GPG temp files cleaned**: `/opt/keys/tmp` removed after build-time signature verification.
+- Retains make, git, openssl, curl, sudo, and all runtime libraries.
+
+### Dockerfile refactoring
+
+- **Centralised version ARGs**: All tool versions defined in a single alphabetically sorted global ARG block at the top of the Dockerfile. Builder ENV block now references `${VAR}` instead of hardcoded values.
+- **Pinned base images**: `rockylinux:9.3` (buildlang), `ubi9/ubi:9.5` (builder) for build determinism.
+- **Bundle cache reconciliation**: Builder stage runs non-frozen `bundle install` first (reconciles stale GHA cache), then `BUNDLE_FROZEN=true bundle check` as the integrity gate.
+- Bumped Bundler 2.7.2 → 4.0.9.
+
+### CI/CD improvements
+
+- **Release workflow**: Added `release: [published]` event trigger. Conditional `latest` tag auto-detects pre-release tags (`-pre`, `-alpha`, `-beta`, `-rc`) and skips `latest` update.
+- **Scan workflow**: Path-filtered `push`/`pull_request` triggers (`docker/**`, scan.yaml). Schedule changed from daily to weekly (Monday 06:00 UTC). Added `release: [published]` trigger.
+- **GEMFILE_HASH cache-buster**: SHA256 of Gemfile.lock passed as build arg to invalidate stale GHA buildlang cache.
+- **Pinned syft**: Makefile sbom target uses syft v1.42.3 with SHA256 checksum verification (replaces curl-pipe-sh installer).
+
+### Test suite reorganisation
+
+- `00_core.bats` → `00_os.bats` — scoped to OS family, devtools group, permissions, PATH, GNUPGHOME.
+- New `01_common_dev_tools.bats` — make, git, openssl, curl, sudo, jq, parallel, Go.
+- New `95_slimdown.bats` — negative assertions confirming build deps (gcc/g++/cpp) and docs are removed.
+- Moved tests to logical homes: trivy → `20_infra.bats`, oc → `60_k8s.bats`, Go → `01_common_dev_tools.bats`.
+- Added pip test to `10_python.bats`.
+- All 55 original tests preserved; 12 new tests added (67 total).
+
+### Upgraded
+
+- cinc-auditor-bin 5.22.55 → 5.23.6 (with inspec/inspec-core 5.23.6)
+- Gemfile.lock regenerated for Ruby 3.4.9 + Bundler 4.0.9
+
+---
+
+## [4.8.0] - 2026-03-23 — Rocky 9 tool upgrades, tfsec→Trivy, GCP CLI and Security Hardening ( PR #42 )
 
 ### Security
 

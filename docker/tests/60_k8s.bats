@@ -20,3 +20,10 @@ load 'test_helper/common.bash'
   run helm version
   assert_success
 }
+
+# --- Moved from 90_extras.bats ----------------------------------------------
+
+@test "oc client is present" {
+    run oc version --client
+    assert_success
+}

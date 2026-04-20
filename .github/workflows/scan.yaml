@@ -10,13 +10,21 @@ name: Scan terrarium image (Trivy)
 on:
   push:
     branches: [master]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/scan.yaml'
   pull_request:
     branches: [master]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/scan.yaml'
   # Also run after the build workflow completes (image may now be in GHCR)
   workflow_run:
     workflows: ["Build, test & publish terrarium"]
     types: [completed]
     branches: [master]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       debug_context:
@@ -24,7 +32,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: "0 13 * * *"
+    - cron: "0 6 * * 1"  # Weekly Monday 06:00 UTC
 
 permissions:
   contents: read

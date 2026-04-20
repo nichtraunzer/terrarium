@@ -9,6 +9,8 @@
 name: Release terrarium (manual)
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -53,7 +55,12 @@ jobs:
 
       - name: Ensure tag exists (create on HEAD if missing)
         run: |
-          TAG="${{ inputs.tag }}"
+          # Resolve tag from release event or workflow_dispatch input
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
 
           # Validate tag for both Git and Docker usage
           if [ -z "$TAG" ]; then
@@ -103,12 +110,14 @@ jobs:
       # Gate: build through the test stage — bats must pass
       - name: Build & run tests
         run: |
+          GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
               --target test \
               --platform ${{ matrix.platform }} \
+              --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
               ./docker \
@@ -122,16 +131,22 @@ jobs:
       - name: Build & push final image
         run: |
           IMAGE="ghcr.io/${{ github.repository }}"
-          TAG="${{ inputs.tag }}"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
 
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
-              --target final \
+              --target test \
               --platform ${{ matrix.platform }} \
               --push \
               --sbom=true \
+              --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --tag "${IMAGE}:${TAG}${{ matrix.suffix }}" \
               ./docker \
@@ -166,19 +181,38 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine tag and latest eligibility
+        id: resolve
+        run: |
+          # Resolve tag from release event or workflow_dispatch input
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            IS_PRERELEASE="${{ github.event.release.prerelease }}"
+          else
+            TAG="${{ inputs.tag }}"
+            IS_PRERELEASE="false"
+            # Auto-detect pre-release from tag name
+            if [[ "$TAG" =~ -(pre|alpha|beta|rc) ]]; then
+              IS_PRERELEASE="true"
+            fi
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
+          echo "::notice::Tag=${TAG}, Pre-release=${IS_PRERELEASE}"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ inputs.tag }}
-            type=raw,value=latest
+            type=raw,value=${{ steps.resolve.outputs.tag }}
+            type=raw,value=latest,enable=${{ steps.resolve.outputs.is_prerelease != 'true' }}
 
       - name: Create and push manifest
         uses: int128/docker-manifest-create-action@44422a4b046d55dc036df622039ed3aec43c613c # v2.17.0
         with:
           tags: ${{ steps.meta.outputs.tags }}
           sources: |
-            ghcr.io/${{ github.repository }}:${{ inputs.tag }}-linux-amd64
-            ghcr.io/${{ github.repository }}:${{ inputs.tag }}-linux-arm64
+            ghcr.io/${{ github.repository }}:${{ steps.resolve.outputs.tag }}-linux-amd64
+            ghcr.io/${{ github.repository }}:${{ steps.resolve.outputs.tag }}-linux-arm64

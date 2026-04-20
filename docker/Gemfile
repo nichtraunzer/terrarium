@@ -15,7 +15,7 @@ end
 source 'https://rubygems.cinc.sh' do
   gem 'inspec-core'
   gem 'inspec'
-  gem 'cinc-auditor-bin', '~> 5.22', '>= 5.22.55'
+  gem 'cinc-auditor-bin', '~> 5.22', '>= 5.22.95'
   gem 'unf_ext'
   gem 'chef-config'
   gem 'chef-utils'

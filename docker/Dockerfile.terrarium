@@ -1,12 +1,39 @@
-# --------- Global args used across stages ---------
+# --------- Global args — single source of truth for all versions ---------
+# Sorted alphabetically. Referenced by ARG in each stage that needs them.
+# Base images pinned for build determinism
+ARG ROCKYLINUX_VERSION=9.3
+ARG UBI9_VERSION=9.5
+ARG AGE_VERSION=1.3.1
+ARG AWS_CDK_VERSION=2.1024.0
+ARG BATS_CORE_VERSION=1.13.0
+ARG BUNDLER_VERSION=4.0.9
+ARG GEM_HOME=/opt/bundle
+ARG GO_VERSION=1.26.1
+ARG HELM_VERSION=3.20.1
+ARG KUBECTL_VERSION=1.35.3
+ARG NODEJS_VERSION=24.14.0
+ARG OC_VERSION=4.19.0
+ARG OPENSTACK_BARBICAN_VERSION=7.3.0
+ARG OPENSTACK_CLIENT_VERSION=7.1.5
+ARG OPENSTACK_VENV=/opt/openstack
+ARG OPENTOFU_VERSION=1.11.5
+ARG PACKER_VERSION=1.15.0
 ARG PYTHON_VERSION=3.13.12
 ARG RUBY_VERSION=3.4.9
-ARG BUNDLER_VERSION=2.7.2
-ARG GEM_HOME=/opt/bundle
-ARG BATS_CORE_VERSION=1.13.0
+ARG SOPS_VERSION=3.12.2
+ARG STARSHIP_VERSION=1.24.2
+ARG TASK_VERSION=3.49.1
+ARG TENV_VERSION=4.9.3
+ARG TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0
+ARG TERRAFORM_DOCS_VERSION=v0.21.0
+ARG TERRAFORM_VERSION=1.14.7
+ARG TFLINT_VERSION=0.61.0
+ARG TRIVY_VERSION=0.69.3
+ARG YQ_VERSION=4.52.4
+ARG ZOXIDE_VERSION=0.9.9
 
 # ================= Stage 0 — buildlang (compile on Rocky 9) =================
-FROM rockylinux:9 AS buildlang
+FROM rockylinux:${ROCKYLINUX_VERSION} AS buildlang
 ARG PYTHON_VERSION RUBY_VERSION BUNDLER_VERSION GEM_HOME
 
 ENV PYENV_ROOT=/opt/pyenv \
@@ -45,6 +72,9 @@ RUN git clone https://github.com/rbenv/rbenv.git ${RBENV_ROOT} \
     && RBENV_VERSION=${RUBY_VERSION} gem install bundler -v ${BUNDLER_VERSION}
 
 # Install the repo Gemfile into /opt/bundle (no direct gem installs of kitchen/cinc!)
+# GEMFILE_HASH busts the GHA build cache when Gemfile.lock changes
+# (external cache sources don't always detect COPY content changes).
+ARG GEMFILE_HASH=""
 COPY Gemfile Gemfile.lock /tmp/gems/
 RUN RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME} \
     && RBENV_VERSION=${RUBY_VERSION} bash -lc "cd /tmp/gems \
@@ -52,45 +82,54 @@ RUN RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME} \
     && bundle binstubs bundler --force" \
     && rm -rf /root/.bundle/cache
 
+# ---- Strip .git metadata from language managers (saves ~13 MB in final image) ----
+RUN rm -rf ${PYENV_ROOT}/.git ${PYENV_ROOT}/plugins/*/.git \
+           ${RBENV_ROOT}/.git ${RBENV_ROOT}/plugins/*/.git
+
 # ================= Stage 1 — builder (UBI 9) =================
-FROM registry.access.redhat.com/ubi9/ubi:latest AS builder
+FROM registry.access.redhat.com/ubi9/ubi:${UBI9_VERSION} AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hartmann <josef.hartmann@boehringer-ingelheim.com>"
 
 ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILDARCH BUILDVARIANT
-ARG PYTHON_VERSION
-ARG GEM_HOME
-ARG BATS_CORE_VERSION
+# Pull in global args needed in this stage
+ARG AGE_VERSION AWS_CDK_VERSION BATS_CORE_VERSION BUNDLER_VERSION GEM_HOME
+ARG GO_VERSION HELM_VERSION KUBECTL_VERSION NODEJS_VERSION
+ARG OC_VERSION OPENSTACK_BARBICAN_VERSION OPENSTACK_CLIENT_VERSION OPENSTACK_VENV
+ARG OPENTOFU_VERSION PACKER_VERSION PYTHON_VERSION RUBY_VERSION
+ARG SOPS_VERSION STARSHIP_VERSION TASK_VERSION TENV_VERSION
+ARG TERRAFORM_CONFIG_INSPECT_VERSION TERRAFORM_DOCS_VERSION TERRAFORM_VERSION
+ARG TFLINT_VERSION TRIVY_VERSION YQ_VERSION ZOXIDE_VERSION
 ARG DEVTOOLS_GID=2001
 
-# Tool versions
-ENV AGE_VERSION=1.3.1 \
-    AWS_CDK_VERSION=2.1024.0 \
-    BUNDLER_VERSION=2.7.2 \
-    GEM_HOME=/opt/bundle \
-    GO_VERSION=1.26.1 \
-    HELM_VERSION=3.20.1 \
-    KUBECTL_VERSION=1.35.3 \
-    NODEJS_VERSION=24.14.0 \
-    PACKER_VERSION=1.15.0 \
+# Bake global ARGs into ENV so they're available in RUN steps and at runtime
+ENV AGE_VERSION=${AGE_VERSION} \
+    AWS_CDK_VERSION=${AWS_CDK_VERSION} \
+    BUNDLER_VERSION=${BUNDLER_VERSION} \
+    GEM_HOME=${GEM_HOME} \
+    GO_VERSION=${GO_VERSION} \
+    HELM_VERSION=${HELM_VERSION} \
+    KUBECTL_VERSION=${KUBECTL_VERSION} \
+    NODEJS_VERSION=${NODEJS_VERSION} \
+    OPENTOFU_VERSION=${OPENTOFU_VERSION} \
+    PACKER_VERSION=${PACKER_VERSION} \
     RBENV_ROOT=/opt/rbenv \
     RBENV_SHELL=bash \
-    RUBY_VERSION=3.4.9 \
-    SOPS_VERSION=3.12.2 \
-    STARSHIP_VERSION=1.24.2 \
-    TASK_VERSION=3.49.1 \
+    RUBY_VERSION=${RUBY_VERSION} \
+    SOPS_VERSION=${SOPS_VERSION} \
+    STARSHIP_VERSION=${STARSHIP_VERSION} \
+    TASK_VERSION=${TASK_VERSION} \
     TENV_AUTO_INSTALL=true \
     TENV_ROOT=/opt/tenv \
-    TENV_VERSION=4.9.3 \
-    TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0 \
-    TERRAFORM_DOCS_VERSION=v0.21.0 \
-    TERRAFORM_VERSION=1.14.7 \
-    OPENTOFU_VERSION=1.11.5 \
-    TFLINT_VERSION=0.61.0 \
-    TRIVY_VERSION=0.69.3 \
-    YQ_VERSION=4.52.4 \
-    ZOXIDE_VERSION=0.9.9
+    TENV_VERSION=${TENV_VERSION} \
+    TERRAFORM_CONFIG_INSPECT_VERSION=${TERRAFORM_CONFIG_INSPECT_VERSION} \
+    TERRAFORM_DOCS_VERSION=${TERRAFORM_DOCS_VERSION} \
+    TERRAFORM_VERSION=${TERRAFORM_VERSION} \
+    TFLINT_VERSION=${TFLINT_VERSION} \
+    TRIVY_VERSION=${TRIVY_VERSION} \
+    YQ_VERSION=${YQ_VERSION} \
+    ZOXIDE_VERSION=${ZOXIDE_VERSION}
 
 # Fingerprints / key sources
 
@@ -223,7 +262,7 @@ RUN echo "I am running on ${BUILDPLATFORM}, ${BUILDOS}, ${BUILDARCH}, ${BUILDVAR
 RUN . /etc/os-release && echo "Base image: $PRETTY_NAME" \
     && dnf -y update \
     && dnf clean all
-RUN printf '\nmax_parallel_downloads=10\nretries=10\n' >> /etc/dnf/dnf.conf
+RUN printf '\nmax_parallel_downloads=10\nretries=10\ntsflags=nodocs\n' >> /etc/dnf/dnf.conf
 
 # Base utils
 RUN dnf -y install dnf-plugins-core \
@@ -419,15 +458,19 @@ COPY --from=buildlang /opt/bundle /opt/bundle
 COPY Gemfile Gemfile.lock /opt/terrarium-gems/
 RUN chmod -R a+rX /opt/terrarium-gems
 
-# Ensure /opt/bundle matches /opt/terrarium-gems/Gemfile.lock
+# Reconcile /opt/bundle (from buildlang cache) with the committed lockfile.
+# Step 1: non-frozen install — brings gems in line with the lockfile even when
+#         the buildlang stage was served from a stale GHA build cache.
+# Step 2: frozen check — verifies the result matches the lockfile exactly,
+#         preserving supply-chain integrity.
 ENV BUNDLE_SILENCE_ROOT_WARNING=1
 RUN set -eux; \
     export RBENV_VERSION="${RUBY_VERSION}" \
     BUNDLE_GEMFILE="/opt/terrarium-gems/Gemfile" \
-    BUNDLE_PATH="${GEM_HOME}" \
-    BUNDLE_FROZEN="true"; \
-    bundle check || bundle install --jobs=6 --retry=3; \
-    bundle clean --force
+    BUNDLE_PATH="${GEM_HOME}"; \
+    bundle install --jobs=6 --retry=3; \
+    bundle clean --force; \
+    BUNDLE_FROZEN=true bundle check
 
 # xorriso (from buildlang)
 COPY --from=buildlang /usr/bin/xorriso /usr/bin/xorriso
@@ -551,7 +594,6 @@ RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && packer --version
 
 # terraform-config-inspect
-ARG TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0
 
 # starship — download binary directly and verify checksum
 RUN set -eux; \
@@ -738,7 +780,6 @@ RUN set -eux; \
     && trivy version
 
 # --- OpenShift CLI (oc) ------------------------------------------------------
-ARG OC_VERSION=4.19.0
 RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}" \
     && fetch -o /tmp/oc.tgz \
     "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux-${arch}-rhel9.tar.gz" \
@@ -747,10 +788,7 @@ RUN arch="${TARGETARCH:-$(echo "${TARGETPLATFORM:-linux/amd64}" | cut -d/ -f2)}"
     && oc version --client
 
 # --- OpenStack CLI -----------------------------------------------------------
-ARG OPENSTACK_VENV=/opt/openstack
-# Version should match upper constraints https://opendev.org/openstack/requirements/src/branch/master/upper-constraints.txt
-ARG OPENSTACK_CLIENT_VERSION=7.1.5
-ARG OPENSTACK_BARBICAN_VERSION=7.3.0
+# Versions should match upper constraints https://opendev.org/openstack/requirements/src/branch/master/upper-constraints.txt
 RUN python -m venv ${OPENSTACK_VENV} \
     && ${OPENSTACK_VENV}/bin/pip install --no-cache-dir \
     python-openstackclient==${OPENSTACK_CLIENT_VERSION} \
@@ -859,28 +897,43 @@ RUN set -eux; \
 RUN install -d -m 0700 -o 1001 -g 0 /home/terrarium/.gnupg
 ENV GNUPGHOME=/home/terrarium/.gnupg
 
+# --- Image slimdown: remove build-only deps, docs, and locale data -----------
+# Build deps (gcc, *-devel, etc.) were needed to compile Python/Ruby in the
+# buildlang stage and for bundle install native extensions above. They are no
+# longer needed at runtime — consumers use pre-built interpreters and gems.
+# Savings: ~210 MB (build deps) + ~138 MB (docs/man/locale) ≈ 350 MB.
+RUN set -eux \
+    && dnf -y remove gcc gcc-c++ cpp binutils autoconf automake libtool \
+        kernel-headers glibc-devel libstdc++-devel \
+        openssl-devel bzip2-devel libffi-devel sqlite-devel \
+        xz-devel zlib-devel libxcrypt-devel \
+    && dnf -y autoremove \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
+    && find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en_US' -exec rm -rf {} + \
+    && rm -rf /usr/lib/locale/locale-archive.tmpl \
+    && rm -rf /opt/keys/tmp
+
+# --- User & group setup (must be in builder so published image includes them) ---
+ARG DEVTOOLS_GID=2001
+RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
+    && useradd -u 1001 -d /home/terrarium -s /bin/bash terrarium || true \
+    && usermod -aG devtools terrarium
+
+# --- Tests & test helpers (ship in published image for runtime health checks) ---
 COPY tests /home/terrarium/tests
-
-WORKDIR $HOME
-CMD ["/bin/bash", "-i", "-l"]
-
-# ================= Stage 2 — test =================
-FROM builder AS test
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN install -d -m 0755 /home/terrarium/tests/test_helper \
     && rm -rf /home/terrarium/tests/test_helper/bats-support /home/terrarium/tests/test_helper/bats-assert \
     && git clone --depth 1 https://github.com/bats-core/bats-support.git /home/terrarium/tests/test_helper/bats-support \
     && git clone --depth 1 https://github.com/bats-core/bats-assert.git   /home/terrarium/tests/test_helper/bats-assert
-RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \;
-ARG DEVTOOLS_GID=2001
-RUN groupadd -g ${DEVTOOLS_GID} devtools || true \
-    && useradd -u 1001 terrarium || true \
-    && usermod -aG devtools terrarium
-USER root
-RUN chown -R terrarium:devtools /home/terrarium/tests
+RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \; \
+    && chown -R terrarium:devtools /home/terrarium/tests
+
+WORKDIR $HOME
+CMD ["/bin/bash", "-i", "-l"]
+
+# ================= Stage 2 — test (build-time gate) =================
+FROM builder AS test
 USER terrarium
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)
-
-# ================= Stage 3 — final =================
-FROM builder AS final
-CMD ["/bin/bash"]

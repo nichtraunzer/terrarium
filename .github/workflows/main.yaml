@@ -83,12 +83,14 @@ jobs:
       # Uses a retry loop to handle transient 502 errors from GHA cache / GHCR
       - name: Build & run tests
         run: |
+          GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
               --target test \
               --platform ${{ matrix.platform }} \
+              --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
               ./docker \
@@ -117,6 +119,7 @@ jobs:
             [ -n "$label" ] && label_args+=(--label "$label")
           done <<< "$META_LABELS"
 
+          GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
@@ -125,6 +128,7 @@ jobs:
               --platform ${{ matrix.platform }} \
               --push \
               --sbom=true \
+              --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               "${tag_args[@]}" "${label_args[@]}" \
               ./docker \
