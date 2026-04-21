@@ -1,14 +1,15 @@
 # --------- Global args — single source of truth for all versions ---------
 # Sorted alphabetically. Referenced by ARG in each stage that needs them.
 # Base images pinned for build determinism
+# Default Versions need to match the Jenkins Build containers as defined at https://github.com/opendevstack/ods-quickstarters/blob/master/common/jenkins-agents/terraform-2408/docker/Dockerfile.ubi9#L26
 ARG ROCKYLINUX_VERSION=9.3
 ARG UBI9_VERSION=9.5
-ARG AGE_VERSION=1.3.1
+ARG AGE_VERSION=1.2.0
 ARG AWS_CDK_VERSION=2.1024.0
 ARG BATS_CORE_VERSION=1.13.0
-ARG BUNDLER_VERSION=4.0.9
+ARG BUNDLER_VERSION=2.5.17
 ARG GEM_HOME=/opt/bundle
-ARG GO_VERSION=1.26.1
+ARG GO_VERSION=1.21.13
 ARG HELM_VERSION=3.20.1
 ARG KUBECTL_VERSION=1.35.3
 ARG NODEJS_VERSION=24.14.0
@@ -17,20 +18,22 @@ ARG OPENSTACK_BARBICAN_VERSION=7.3.0
 ARG OPENSTACK_CLIENT_VERSION=7.1.5
 ARG OPENSTACK_VENV=/opt/openstack
 ARG OPENTOFU_VERSION=1.11.5
-ARG PACKER_VERSION=1.15.0
+ARG PACKER_VERSION=1.11.2
 ARG PYTHON_VERSION=3.13.12
-ARG RUBY_VERSION=3.4.9
+ARG RUBY_VERSION=3.3.4
 ARG SOPS_VERSION=3.12.2
 ARG STARSHIP_VERSION=1.24.2
-ARG TASK_VERSION=3.49.1
+ARG TASK_VERSION=3.38.0
 ARG TENV_VERSION=4.11.1
 ARG TERRAFORM_CONFIG_INSPECT_VERSION=0.2.0
-ARG TERRAFORM_DOCS_VERSION=v0.21.0
-ARG TERRAFORM_VERSION=1.14.7
-ARG TFLINT_VERSION=0.61.0
+ARG TERRAFORM_DOCS_VERSION=v0.18.0
+ARG TERRAFORM_VERSION=1.9.4
+ARG TFLINT_VERSION=0.52.0
 ARG TRIVY_VERSION=0.69.3
+# ARG UV_VERSION=0.11.6 Defined in docker/pyproject.toml
 ARG YQ_VERSION=4.52.4
 ARG ZOXIDE_VERSION=0.9.9
+
 
 # ================= Stage 0 — buildlang (compile on Rocky 9) =================
 FROM rockylinux:${ROCKYLINUX_VERSION} AS buildlang
@@ -84,7 +87,7 @@ RUN RBENV_VERSION=${RUBY_VERSION} bundle config set --global path ${GEM_HOME} \
 
 # ---- Strip .git metadata from language managers (saves ~13 MB in final image) ----
 RUN rm -rf ${PYENV_ROOT}/.git ${PYENV_ROOT}/plugins/*/.git \
-           ${RBENV_ROOT}/.git ${RBENV_ROOT}/plugins/*/.git
+    ${RBENV_ROOT}/.git ${RBENV_ROOT}/plugins/*/.git
 
 # ================= Stage 1 — builder (UBI 9) =================
 FROM registry.access.redhat.com/ubi9/ubi:${UBI9_VERSION} AS builder
@@ -452,29 +455,29 @@ RUN set -euo pipefail; \
     final_ring=/opt/keys/gpg/node.gpg; \
     rm -f "$tmp_ring" "$final_ring"; \
     if fetch -o "$tmp_ring" https://github.com/nodejs/release-keys/raw/HEAD/gpg/pubring.kbx; then \
-      echo "INFO: node: using curated release keyring"; \
+    echo "INFO: node: using curated release keyring"; \
     else \
-      echo "WARN: node: curated keyring unavailable, importing from allowlist"; \
-      for f in $NODE_RELEASE_FPRS; do \
-        asc="/opt/keys/tmp/node-${f}.asc"; \
-        if ! fetch -o "$asc" "https://keys.openpgp.org/vks/v1/by-fingerprint/${f}"; then \
-          fetch -o "$asc" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${f}"; \
-        fi; \
-        gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-            --keyring "$tmp_ring" --import "$asc"; \
-      done; \
+    echo "WARN: node: curated keyring unavailable, importing from allowlist"; \
+    for f in $NODE_RELEASE_FPRS; do \
+    asc="/opt/keys/tmp/node-${f}.asc"; \
+    if ! fetch -o "$asc" "https://keys.openpgp.org/vks/v1/by-fingerprint/${f}"; then \
+    fetch -o "$asc" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${f}"; \
+    fi; \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring "$tmp_ring" --import "$asc"; \
+    done; \
     fi; \
     for f in $NODE_RELEASE_FPRS; do \
-      gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-          --keyring "$tmp_ring" --export "$f" 2>/dev/null \
-      | gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-            --keyring "$final_ring" --import 2>/dev/null || true; \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring "$tmp_ring" --export "$f" 2>/dev/null \
+    | gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring "$final_ring" --import 2>/dev/null || true; \
     done; \
     if ! gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-             --keyring "$final_ring" --with-colons --fingerprint 2>/dev/null \
-         | awk -F: '/^fpr:/{print $10}' | grep -q .; then \
-      echo "ERROR: node: no allowlisted keys present after import (allowlist stale or source tampered?)" >&2; \
-      exit 1; \
+    --keyring "$final_ring" --with-colons --fingerprint 2>/dev/null \
+    | awk -F: '/^fpr:/{print $10}' | grep -q .; then \
+    echo "ERROR: node: no allowlisted keys present after import (allowlist stale or source tampered?)" >&2; \
+    exit 1; \
     fi
 
 
@@ -492,10 +495,10 @@ RUN import_vendor_key awscli "$AWS_CLI_PGP_FPR" \
 
 # Show imported keys (optional, quiet)
 RUN for name in hashicorp opentofu awscli node; do \
-      gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-          --keyring "/opt/keys/gpg/${name}.gpg" \
-          --list-keys --with-fingerprint --with-colons \
-      | awk -F: -v n="$name" '/^fpr:/{print n ":", $10}'; \
+    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+    --keyring "/opt/keys/gpg/${name}.gpg" \
+    --list-keys --with-fingerprint --with-colons \
+    | awk -F: -v n="$name" '/^fpr:/{print n ":", $10}'; \
     done
 
 
@@ -959,9 +962,9 @@ ENV GNUPGHOME=/home/terrarium/.gnupg
 # Savings: ~210 MB (build deps) + ~138 MB (docs/man/locale) ≈ 350 MB.
 RUN set -eux \
     && dnf -y remove gcc gcc-c++ cpp binutils autoconf automake libtool \
-        kernel-headers glibc-devel libstdc++-devel \
-        openssl-devel bzip2-devel libffi-devel sqlite-devel \
-        xz-devel zlib-devel libxcrypt-devel \
+    kernel-headers glibc-devel libstdc++-devel \
+    openssl-devel bzip2-devel libffi-devel sqlite-devel \
+    xz-devel zlib-devel libxcrypt-devel \
     && dnf -y autoremove \
     && dnf clean all \
     && rm -rf /var/cache/dnf \
