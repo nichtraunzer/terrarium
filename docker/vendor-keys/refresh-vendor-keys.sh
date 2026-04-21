@@ -8,12 +8,14 @@
 # - Node.js: use curated release keyring; fallback to a pinned allow-list
 #
 # Usage:
-#   ./refresh-vendor-keys.sh                       # prints ENV block to stdout
-#   ./refresh-vendor-keys.sh > vendor-keys.env     # overwrite the vendored file
+#   ./refresh-vendor-keys.sh                          # prints Dockerfile ENV block to stdout
+#   ./refresh-vendor-keys.sh print-shell-env          # prints shell-sourceable KEY=VAL pins
+#   ./refresh-vendor-keys.sh strict                   # exits non-zero if fresh fingerprints
+#                                                     # differ from values already in env
 #
-# After updating vendor-keys.env, mirror the fingerprint values into the
-# ENV block of docker/Dockerfile.terrarium. The Dockerfile does not source
-# this file (Dockerfile ENV cannot source external files).
+# After updating vendor-keys.env (via `print-shell-env`), mirror the fingerprint
+# values into the ENV block of docker/Dockerfile.terrarium. The Dockerfile does
+# not source this file (Dockerfile ENV cannot source external files).
 #
 # Notes / sources:
 #   - HashiCorp .well-known PGP key:
@@ -29,6 +31,16 @@
 #     https://github.com/nodejs/node#verifying-binaries
 
 set -Eeuo pipefail
+
+MODE="${1:-}"
+case "$MODE" in
+  ""|print-shell-env|strict) ;;
+  *)
+    echo "ERROR: unknown subcommand: ${MODE}" >&2
+    echo "Usage: $0 [print-shell-env|strict]" >&2
+    exit 2
+    ;;
+esac
 
 CURL_BIN="$(command -v curl || true)"
 WGET_BIN="$(command -v wget || true)"
@@ -219,7 +231,73 @@ else
 fi
 
 iso_now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-cat <<EOF
+
+# Normalize: fingerprints to uppercase hex; Node list sorted, uniq, space-joined.
+hashi_fpr_norm="$(tr '[:lower:]' '[:upper:]' <<<"$hashi_fpr")"
+opentofu_fpr_norm="$(tr '[:lower:]' '[:upper:]' <<<"$opentofu_fpr")"
+aws_fpr_norm="$(tr '[:lower:]' '[:upper:]' <<<"$aws_fpr")"
+# shellcheck disable=SC2086  # intentional word-splitting of space-joined list
+node_fprs_norm="$(printf '%s\n' $node_fprs | tr '[:lower:]' '[:upper:]' | sort -u | xargs)"
+
+case "$MODE" in
+  print-shell-env)
+    cat <<EOF
+# Refreshed: ${iso_now} (UTC)
+# Source this file from bash to set vendor-key fingerprint pins.
+# Sources:
+#  - HashiCorp: https://www.hashicorp.com/.well-known/pgp-key.txt
+#  - OpenTofu:  https://get.opentofu.org/opentofu.asc
+#  - AWS CLI:   fingerprint derived from detached signature, key fetched from keyserver
+#  - Node:      curated keyring recommended by Node (fallback to allow-list)
+HASHICORP_PGP_FPR="${hashi_fpr_norm}"
+OPENTOFU_PGP_FPR="${opentofu_fpr_norm}"
+AWS_CLI_PGP_URL="${aws_url:-}"
+AWS_CLI_PGP_FPR="${aws_fpr_norm}"
+NODE_RELEASE_FPRS="${node_fprs_norm}"
+EOF
+    ;;
+
+  strict)
+    fail=0
+    check_eq() {
+      # check_eq <name> <expected> <computed>
+      local name="$1" expected="$2" computed="$3"
+      if [[ -z "$expected" ]]; then
+        echo "ERROR: ${name} is not set in the environment (expected to match ${computed})" >&2
+        fail=1
+      elif [[ "$(tr '[:lower:]' '[:upper:]' <<<"$expected")" != "$computed" ]]; then
+        echo "ERROR: ${name} mismatch" >&2
+        echo "       env pin:  ${expected}" >&2
+        echo "       computed: ${computed}" >&2
+        fail=1
+      fi
+    }
+    check_eq HASHICORP_PGP_FPR "${HASHICORP_PGP_FPR:-}" "$hashi_fpr_norm"
+    check_eq OPENTOFU_PGP_FPR  "${OPENTOFU_PGP_FPR:-}"  "$opentofu_fpr_norm"
+    check_eq AWS_CLI_PGP_FPR   "${AWS_CLI_PGP_FPR:-}"   "$aws_fpr_norm"
+
+    # Node list: normalize both sides, then compare.
+    # shellcheck disable=SC2086  # intentional word-splitting of space-joined list
+    env_node="$(printf '%s\n' ${NODE_RELEASE_FPRS:-} | tr '[:lower:]' '[:upper:]' | sort -u | xargs || true)"
+    if [[ -z "${NODE_RELEASE_FPRS:-}" ]]; then
+      echo "ERROR: NODE_RELEASE_FPRS is not set in the environment (expected: ${node_fprs_norm})" >&2
+      fail=1
+    elif [[ "$env_node" != "$node_fprs_norm" ]]; then
+      echo "ERROR: NODE_RELEASE_FPRS mismatch" >&2
+      echo "       env pin:  ${env_node}" >&2
+      echo "       computed: ${node_fprs_norm}" >&2
+      fail=1
+    fi
+
+    if [[ "$fail" -ne 0 ]]; then
+      echo "strict: fingerprint pins do not match freshly computed values." >&2
+      exit 1
+    fi
+    # success: silent, suits CI
+    ;;
+
+  "")
+    cat <<EOF
 
 ## Refreshed: ${iso_now} (UTC)
 # Sources:
@@ -229,11 +307,13 @@ cat <<EOF
 #  - AWS CLI: fingerprint derived from real detached signature (.sig), key fetched from keyserver
 #  - Node: curated keyring recommended by Node (fallback to allow-list)
 
-ENV HASHICORP_PGP_FPR=${hashi_fpr} \\
-    OPENTOFU_PGP_FPR=${opentofu_fpr} \\
+ENV HASHICORP_PGP_FPR=${hashi_fpr_norm} \\
+    OPENTOFU_PGP_FPR=${opentofu_fpr_norm} \\
     AWS_CLI_PGP_URL="${aws_url:-}" \\
-    AWS_CLI_PGP_FPR=${aws_fpr} \\
+    AWS_CLI_PGP_FPR=${aws_fpr_norm} \\
     NODE_RELEASE_FPRS="\\
-$(for w in $node_fprs; do echo "    $w \\"; done)
+$(for w in $node_fprs_norm; do echo "    $w \\"; done)
     "
 EOF
+    ;;
+esac
