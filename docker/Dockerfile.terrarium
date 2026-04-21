@@ -979,7 +979,10 @@ RUN find /home/terrarium/tests -type f -name "*.bats" -exec chmod +x {} \; \
 WORKDIR $HOME
 CMD ["/bin/bash", "-i", "-l"]
 
-# ================= Stage 2 — test (build-time gate) =================
+# ================= Stage 2 — test (build-time gate, also the publish target) =================
+# `test` is the last stage by design: the bats suite is intentionally shipped
+# so consumers can re-run it against a running container (see README
+# "Test an already-built image"). CI workflows publish --target test.
 FROM builder AS test
 USER terrarium
 RUN bats --report-formatter junit /home/terrarium/tests --output /home/terrarium --jobs $(nproc)

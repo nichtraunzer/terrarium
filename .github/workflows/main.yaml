@@ -100,7 +100,8 @@ jobs:
             sleep 30
           done
 
-      # Push: build the clean final stage (no test artifacts)
+      # Push: publish the test stage — the bats suite is intentionally shipped
+      # so consumers can re-run it against a running container.
       - name: Build & push final image
         if: github.event_name != 'pull_request'
         env:
@@ -124,7 +125,7 @@ jobs:
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
-              --target final \
+              --target test \
               --platform ${{ matrix.platform }} \
               --push \
               --sbom=true \
