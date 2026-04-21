@@ -20,9 +20,9 @@
 
 ### Fixed
 
-- **Terrarium user and devtools group moved into builder stage** — the `terrarium` user (UID 1001), `devtools` group (GID 2001), and bats test helpers (bats-support/bats-assert) were previously created only in the `test` stage. The published image (`final`) shipped without a user entry in `/etc/passwd`, breaking downstream consumers. All three are now in the `builder` stage so every downstream stage inherits them.
-- **Removed empty `final` stage** — `builder` is now the complete published image with tests, user, and helpers baked in. The `test` stage remains as a build-time gate that runs bats to validate the image.
-- Tests now ship in the published image for runtime health checks — downstream consumers can run `bats /home/terrarium/tests` to verify the container after deployment.
+- **Terrarium user and devtools group moved into builder stage** — the `terrarium` user (UID 1001), `devtools` group (GID 2001), and bats test helpers (bats-support/bats-assert) were previously created only in the `test` stage. The published image (`final`) shipped without a user entry in `/etc/passwd`, breaking downstream consumers. All three are now in the `builder` stage so the published `test` stage and any other downstream stages inherit them.
+- **Removed empty `final` stage** — the empty `final` stage was removed, and the published image target is the `test` stage built from `builder`, with tests, user, and helpers baked in.
+- Tests now ship in the published `test` image for runtime health checks — downstream consumers can run `bats /home/terrarium/tests` to verify the container after deployment.
 - **`tenv` 4.9.3 → 4.11.1** — `tenv 4.11.0` introduced a fix for PGP signature checking that tolerates the expired HashiCorp release key. The old 4.9.3 pin failed at image-build time because the HashiCorp `.well-known` PGP key had entered the expired window and 4.9.3's `--skip-signature` did not short-circuit before the key was parsed. This unblocks `docker build`.
 - `BUNDLED WITH` in `docker/Gemfile.lock` aligned with `BUNDLER_VERSION` so the builder-stage `bundle check` does not encounter lockfile metadata from a bundler version that is not actually installed in the image.
 
