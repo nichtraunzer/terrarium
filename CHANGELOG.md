@@ -14,7 +14,7 @@
 - Three new bats smoke tests in `docker/tests/01_common_dev_tools.bats` for the above — `ripgrep`, `chsh`, and the CA bundle.
 - `make test` alias for `make docker-build-test` with updated README documentation.
 - Local developer helper `scripts/build-test-local.ps1` for line-by-line PowerShell-extension testing.
-- `UV_VERSION=0.11.6` declared as a Dockerfile ARG (wire-up of the `uv` install step is deferred).
+- `uv` is pinned in `docker/pyproject.toml` as `uv~=0.11.6`; Dockerfile `UV_VERSION` wiring remains commented out / deferred.
 
 ### Fixed
 
