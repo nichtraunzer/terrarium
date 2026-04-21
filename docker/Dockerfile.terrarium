@@ -611,6 +611,18 @@ RUN ARCH_NODE=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
 # Point tenv at the locally pinned vendor keys (already fingerprint-verified
 # at /opt/keys/*.asc) so tenv does not re-fetch upstream key endpoints at
 # build time, which has tripped on upstream key expiration / rotation.
+#
+# tenv 4.11.0 shipped the "Fix PGP signature check" that makes tenv select
+# the valid (non-expired) signing subkey from HashiCorp's key pack.
+# HashiCorp's original signing subkey B0B441097685B676 expired 2022-04-19;
+# the newer subkey C820C6D5CD27AB87 (valid through 2030) must be preferred,
+# and only tenv >= 4.11.0 does this reliably.
+#
+# Cache invalidation note: TENV_VERSION / TERRAFORM_VERSION / OPENTOFU_VERSION
+# must be passed as --build-arg by the CI workflows (see .github/workflows/*)
+# so buildkit's cache-from treats version bumps as a cache-key change.
+# Without that, stale cached layers built with older versions can satisfy
+# cache-from hits even after the Dockerfile ARG defaults are bumped.
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && dnf -y install "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm" \
     && export TFENV_HASHICORP_PGP_KEY=/opt/keys/hashicorp.asc \

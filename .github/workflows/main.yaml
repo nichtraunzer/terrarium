@@ -84,6 +84,14 @@ jobs:
       - name: Build & run tests
         run: |
           GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
+          # Read Dockerfile ARG defaults and pass as --build-arg so buildkit's
+          # cache-from honours version bumps as a cache-key change (without
+          # this, stale cached layers for the tenv/terraform/opentofu install
+          # step can satisfy cache-from hits and mask version updates).
+          arg_val() { grep -m1 "^ARG $1=" docker/Dockerfile.terrarium | cut -d= -f2; }
+          TENV_VERSION=$(arg_val TENV_VERSION)
+          TERRAFORM_VERSION=$(arg_val TERRAFORM_VERSION)
+          OPENTOFU_VERSION=$(arg_val OPENTOFU_VERSION)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
@@ -91,6 +99,9 @@ jobs:
               --target test \
               --platform ${{ matrix.platform }} \
               --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
+              --build-arg TENV_VERSION="${TENV_VERSION}" \
+              --build-arg TERRAFORM_VERSION="${TERRAFORM_VERSION}" \
+              --build-arg OPENTOFU_VERSION="${OPENTOFU_VERSION}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
               ./docker \
@@ -121,6 +132,13 @@ jobs:
           done <<< "$META_LABELS"
 
           GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
+          # Read Dockerfile ARG defaults — passed as --build-arg so buildkit's
+          # cache-from honours version bumps (see comment on the tenv RUN in
+          # docker/Dockerfile.terrarium).
+          arg_val() { grep -m1 "^ARG $1=" docker/Dockerfile.terrarium | cut -d= -f2; }
+          TENV_VERSION=$(arg_val TENV_VERSION)
+          TERRAFORM_VERSION=$(arg_val TERRAFORM_VERSION)
+          OPENTOFU_VERSION=$(arg_val OPENTOFU_VERSION)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
@@ -130,6 +148,9 @@ jobs:
               --push \
               --sbom=true \
               --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
+              --build-arg TENV_VERSION="${TENV_VERSION}" \
+              --build-arg TERRAFORM_VERSION="${TERRAFORM_VERSION}" \
+              --build-arg OPENTOFU_VERSION="${OPENTOFU_VERSION}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               "${tag_args[@]}" "${label_args[@]}" \
               ./docker \
