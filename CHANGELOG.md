@@ -49,7 +49,7 @@
   - `aws-sdk` 3.2.0 → 3.3.0 — closes [nichtraunzer/terrarium#69](https://github.com/nichtraunzer/terrarium/pull/69).
   - `test-kitchen` 3.6.0 → 3.9.1 — closes [nichtraunzer/terrarium#70](https://github.com/nichtraunzer/terrarium/pull/70).
 - Other transitive bumps: `addressable` 2.9.0, `csv` 3.3.0 → 3.3.5, `mutex_m` 0.2.0 → 0.3.0.
-- Python tooling: `uv` 0.11.7, `cryptography` 46.0.7.
+- Python tooling: `uv` 0.11.6, `cryptography` 46.0.7.
 
 ### Docs
 
