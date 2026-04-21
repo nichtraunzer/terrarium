@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## [4.8.2] 2026-04-21 — PGP vendor-key unification, tenv expired-key fix, Jenkins-agent tool alignment, Dependabot integration
 
 ### Added
