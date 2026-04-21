@@ -12,18 +12,24 @@ SHELLFLAGS := -eu -o pipefail -c
 # ---------------- Configuration ----------------
 # Keys management
 KEYS_SCRIPT ?= docker/vendor-keys/refresh-vendor-keys.sh
-ENV_FILE    ?= docker/vendor-keys/vendor-keys.env  # optional: where to stash shell-style pins
+# Optional: where to stash shell-style pins
+ENV_FILE    ?= docker/vendor-keys/vendor-keys.env
 
 # Docker build/test
 DOCKERFILE       ?= docker/Dockerfile.terrarium
 DOCKER_CONTEXT   ?= docker
 IMAGE            ?= terrarium
 TAG              ?= latest
-TEST_STAGE       ?= test                     # Dockerfile stage that runs tests
-TEST_TAG         ?= test                     # Tag for test-stage image: $(IMAGE):$(TEST_TAG)
-CONTAINER_NAME   ?= terrarium                # Used by docker-test-exec and as a default name
-TEST_REPORT_DIR  ?= test-reports             # Host folder for JUnit/XML reports
-BATS_TEST_PATH   ?= /home/terrarium/tests    # In-container path to your bats tests
+# Dockerfile stage that runs tests
+TEST_STAGE       ?= test
+# Tag for test-stage image: $(IMAGE):$(TEST_TAG)
+TEST_TAG         ?= test
+# Used by docker-test-exec and as a default name
+CONTAINER_NAME   ?= terrarium
+# Host folder for JUnit/XML reports
+TEST_REPORT_DIR  ?= test-reports
+# In-container path to your bats tests
+BATS_TEST_PATH   ?= /home/terrarium/tests
 
 # Docker cache control
 # Usage: make docker-build NO_CACHE=1
@@ -53,7 +59,7 @@ define assert_file
 	test -f "$(1)" || { printf "$(RED)Error: missing file: $(1)$(RESET)\n" >&2; exit 1; }
 endef
 
-.PHONY: help verify-keys print-keys write-keys check-keys docker-build docker-build-test docker-test docker-test-exec sbom
+.PHONY: help verify-keys print-keys write-keys check-keys docker-build docker-build-test docker-test docker-test-exec test sbom
 
 # ================== Meta ==================
 help: ## Show this help (default)
@@ -106,6 +112,8 @@ docker-build: ## Build the runtime image: $(IMAGE):$(TAG) from $(DOCKERFILE)
 		-t "$(IMAGE):$(TAG)" \
 		-f "$(DOCKERFILE)" $(DOCKER_CONTEXT)
 	@printf "$(GREEN)Built $(IMAGE):$(TAG)$(RESET)\n"
+
+test: docker-build-test ## Alias: build the test stage (runs bats at build-time); fails if bats fails
 
 docker-build-test: ## Build the test stage (runs bats at build-time) -> $(IMAGE):$(TEST_TAG); fails if bats fails
 	@$(assert_docker)
