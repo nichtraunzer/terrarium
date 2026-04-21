@@ -150,6 +150,18 @@ ENV AGE_VERSION=${AGE_VERSION} \
 #     3. Compare to the Security page. If HashiCorp rotates keys, update HASHICORP_PGP_FPR below
 #        and commit a link to the rotation notice/release notes for traceability.
 #
+# OpenTofu (signs SHA256SUMS on GitHub releases; tenv verifies via PGP when cosign is absent)
+#   • Canonical public key (ASCII armored) served by the OpenTofu project:
+#       https://get.opentofu.org/opentofu.asc
+#   • Current primary fingerprint (no spaces): E3E6E43D84CB852EADB0051D0C0AF313E5FD9F80
+#     UID: OpenTofu (core@opentofu.org)
+#   • Deterministic fetch by fingerprint (alternate source):
+#       https://keys.openpgp.org/vks/v1/by-fingerprint/<FPR>
+#   Update steps:
+#     1. Fetch the key from both get.opentofu.org and keys.openpgp.org (by fingerprint).
+#     2. Compute the fingerprint (same gpg command as above) and confirm both sources agree.
+#     3. If OpenTofu rotates the key, update OPENTOFU_PGP_FPR below and link the rotation notice.
+#
 # AWS CLI v2 (zip installers are .sig-signed)
 #   • Public key file:
 #       https://awscli.amazonaws.com/AWSCLIV2.asc
@@ -179,7 +191,8 @@ ENV AGE_VERSION=${AGE_VERSION} \
 # ───────────────────────────────────────────────────────────────────────────────────────────────
 
 ENV HASHICORP_PGP_FPR=C874011F0AB405110D02105534365D9472D7468F \
-    AWS_CLI_PGP_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xFB5DB77FD5C118B80511ADA8A6310ACC4672475C" \
+    OPENTOFU_PGP_FPR=E3E6E43D84CB852EADB0051D0C0AF313E5FD9F80 \
+    AWS_CLI_PGP_URL="https://awscli.amazonaws.com/AWSCLIV2.asc" \
     AWS_CLI_PGP_FPR=FB5DB77FD5C118B80511ADA8A6310ACC4672475C \
     NODE_RELEASE_FPRS="\
     0912234647DD4B223F04152259EB1E31F56368C1 \
@@ -349,104 +362,132 @@ expected="$(grep -E "([[:space:]]|[*])$(basename "$file")$" "$tmp/checksums.txt"
 echo "${expected}  ${file}" | sha256sum -c -
 EOF4
 
+# Vendor-key import helper
+#
+# Fetches a PGP public key, verifies it contains the pinned fingerprint, and
+# installs it to a trusted keyring. Fail-closed at every step. The trusted
+# keyring is only written once the pinned fingerprint has been confirmed in
+# a disposable temp keyring.
+RUN cat >/usr/local/bin/import_vendor_key <<'EOF' && chmod +x /usr/local/bin/import_vendor_key
+#!/usr/bin/env bash
+# import_vendor_key <name> <expected_fpr> <primary_url> <fallback_url> <out_asc> <out_ring>
+#
+# Tries <primary_url> first; if either fetch fails OR the imported key does not
+# contain <expected_fpr> (e.g. keys.openpgp.org strips UIDs for unverified
+# vendors, leaving a UID-less key that GPG refuses to import), falls back to
+# <fallback_url>. Fail-closed if neither source yields the pinned fingerprint.
+set -euo pipefail
+if [ "$#" -ne 6 ]; then
+  echo "usage: import_vendor_key <name> <fpr> <primary_url> <fallback_url> <out_asc> <out_ring>" >&2
+  exit 2
+fi
+name="$1"; fpr="$2"; primary="$3"; fallback="$4"; out_asc="$5"; out_ring="$6"
+
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+tmp_ring="${tmp}/${name}.kbx"
+
+install -d -m 0755 "$(dirname "$out_asc")" "$(dirname "$out_ring")"
+
+try_source() {
+  local url="$1"
+  rm -f "$out_asc" "$tmp_ring"
+  fetch -o "$out_asc" "$url" || return 1
+  gpg --batch ${GNUPGHOME:+--homedir "$GNUPGHOME"} --no-default-keyring \
+      --keyring "$tmp_ring" --import "$out_asc" || return 1
+  gpg --batch ${GNUPGHOME:+--homedir "$GNUPGHOME"} --no-default-keyring \
+      --keyring "$tmp_ring" --with-colons --fingerprint 2>/dev/null \
+  | awk -F: '/^fpr:/{print $10}' \
+  | grep -Fxq "$fpr"
+}
+
+echo "INFO: ${name}: trying primary source: ${primary}"
+if ! try_source "$primary"; then
+  echo "INFO: ${name}: primary did not yield key ${fpr}; trying fallback: ${fallback}"
+  if ! try_source "$fallback"; then
+    echo "ERROR: ${name}: neither primary nor fallback yielded a key with pinned fingerprint ${fpr}" >&2
+    exit 1
+  fi
+fi
+
+cp -f "$tmp_ring" "$out_ring"
+echo "INFO: ${name}: key verified; installed to ${out_ring}"
+EOF
+
 # Keyrings (deterministic bootstrap)
 RUN install -d -m 0755 /opt/keys/gpg /opt/keys/tmp
 
 ENV GNUPGHOME=/opt/keys/gnupg
 RUN install -d -m 0700 "$GNUPGHOME"
 
-# HashiCorp security key (fetch by fingerprint; fallback to .well-known) ─────
-RUN set -eux; \
-    file=/opt/keys/hashicorp.asc; \
-    tmpring=/opt/keys/tmp/hashicorp.kbx; \
-    trustring=/opt/keys/gpg/hashicorp.gpg; \
-    # 1) Try the deterministic by-fingerprint endpoint
-    if ! fetch -o "$file" "https://keys.openpgp.org/vks/v1/by-fingerprint/${HASHICORP_PGP_FPR}"; then \
-    echo "INFO: keys.openpgp.org unavailable; falling back to hashicorp.com .well-known"; \
-    fetch -o "$file" https://www.hashicorp.com/.well-known/pgp-key.txt; \
-    fi; \
-    # Import to a temp keyring, then verify the pinned fingerprint is present
-    rm -f "$tmpring"; \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring --keyring "$tmpring" --import "$file"; \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring --keyring "$tmpring" \
-    --with-colons --fingerprint | awk -F: '/^fpr:/{print $10}' | tee /opt/keys/tmp/hashicorp.fprs; \
-    grep -Fx "${HASHICORP_PGP_FPR}" /opt/keys/tmp/hashicorp.fprs; \
-    # Move the verified ring into the trusted location
-    cp -f "$tmpring" "$trustring"
+# HashiCorp security key
+RUN import_vendor_key hashicorp "$HASHICORP_PGP_FPR" \
+    "https://keys.openpgp.org/vks/v1/by-fingerprint/${HASHICORP_PGP_FPR}" \
+    "https://www.hashicorp.com/.well-known/pgp-key.txt" \
+    /opt/keys/hashicorp.asc /opt/keys/gpg/hashicorp.gpg
+
+# OpenTofu release key — vendor URL is primary because keys.openpgp.org strips
+# UIDs for this key (owner has not email-verified with that keyserver), and
+# GPG refuses to import UID-less keys. Ubuntu keyserver preserves UIDs.
+RUN import_vendor_key opentofu "$OPENTOFU_PGP_FPR" \
+    "https://get.opentofu.org/opentofu.asc" \
+    "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${OPENTOFU_PGP_FPR}" \
+    /opt/keys/opentofu.asc /opt/keys/gpg/opentofu.gpg
 
 
-# Node.js release keys — prefer curated keyring; fallback to per-fingerprint imports
-RUN set -eux; \
-    if fetch -o /opt/keys/gpg/node.kbx \
-    https://github.com/nodejs/release-keys/raw/HEAD/gpg/pubring.kbx; then \
-    echo "INFO: using curated Node.js release keyring"; \
+# Node.js release keys — prefer curated keyring; fallback to per-fingerprint imports.
+# Security model: the pinned NODE_RELEASE_FPRS allowlist is the trust anchor.
+# Whatever the source (curated or fallback), only allowlisted fingerprints are
+# promoted into the trusted final keyring. Fail-closed if none survive.
+RUN set -euo pipefail; \
+    tmp_ring=/opt/keys/tmp/node.kbx; \
+    final_ring=/opt/keys/gpg/node.gpg; \
+    rm -f "$tmp_ring" "$final_ring"; \
+    if fetch -o "$tmp_ring" https://github.com/nodejs/release-keys/raw/HEAD/gpg/pubring.kbx; then \
+      echo "INFO: node: using curated release keyring"; \
     else \
-    echo "WARN: curated keyring unavailable, falling back to importing fingerprints"; \
-    for f in $NODE_RELEASE_FPRS; do \
-    # Try keys.openpgp.org first; if 404, fall back to Ubuntu keyserver
-    if ! fetch -o "/opt/keys/tmp/${f}.asc" "https://keys.openpgp.org/vks/v1/by-fingerprint/${f}"; then \
-    fetch -o "/opt/keys/tmp/${f}.asc" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${f}"; \
+      echo "WARN: node: curated keyring unavailable, importing from allowlist"; \
+      for f in $NODE_RELEASE_FPRS; do \
+        asc="/opt/keys/tmp/node-${f}.asc"; \
+        if ! fetch -o "$asc" "https://keys.openpgp.org/vks/v1/by-fingerprint/${f}"; then \
+          fetch -o "$asc" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${f}"; \
+        fi; \
+        gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+            --keyring "$tmp_ring" --import "$asc"; \
+      done; \
     fi; \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-    --keyring /opt/keys/gpg/node.gpg --import "/opt/keys/tmp/${f}.asc" || true; \
+    for f in $NODE_RELEASE_FPRS; do \
+      gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+          --keyring "$tmp_ring" --export "$f" 2>/dev/null \
+      | gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+            --keyring "$final_ring" --import 2>/dev/null || true; \
     done; \
+    if ! gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+             --keyring "$final_ring" --with-colons --fingerprint 2>/dev/null \
+         | awk -F: '/^fpr:/{print $10}' | grep -q .; then \
+      echo "ERROR: node: no allowlisted keys present after import (allowlist stale or source tampered?)" >&2; \
+      exit 1; \
     fi
 
 
-# AWS CLI release key — fetch from AWS first; fallback to keyservers; import into KBX ring
-RUN set -eux; \
-    fpr="${AWS_CLI_PGP_FPR}"; \
-    out=/opt/keys/awscli.asc; \
-    ring=/opt/keys/gpg/awscli.kbx; \
-    # Prefer the vendor‑hosted key; fallback if overridden or temporarily unavailable
-    if [ -n "${AWS_CLI_PGP_URL}" ]; then \
-    fetch -o "$out" "$AWS_CLI_PGP_URL" || \
-    ( echo "WARN: ${AWS_CLI_PGP_URL} failed, falling back to keyservers"; \
-    fetch -o "$out" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${fpr}" || \
-    fetch -o "$out" "https://keys.openpgp.org/vks/v1/by-fingerprint/${fpr}" ); \
-    else \
-    fetch -o "$out" "https://awscli.amazonaws.com/AWSCLIV2.asc" || \
-    ( echo "WARN: https://awscli.amazonaws.com/AWSCLIV2.asc failed, falling back to keyservers"; \
-    fetch -o "$out" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${fpr}" || \
-    fetch -o "$out" "https://keys.openpgp.org/vks/v1/by-fingerprint/${fpr}" ); \
-    fi; \
-    got="$(gpg --batch --homedir "$GNUPGHOME" --quiet --with-colons \
-    --import-options show-only --import "$out" \
-    | awk -F: '/^fpr:/{print $10; exit}')"; \
-    [ "$got" = "$fpr" ]; \
-    rm -f "$ring"; \
-    gpg --batch --homedir "$GNUPGHOME" --quiet --no-default-keyring \
-    --keyring "$ring" --import "$out"
+# AWS CLI release key — vendor URL is primary because keys.openpgp.org strips
+# UIDs for this key. See the comment on the OpenTofu block above. The helper
+# auto-falls-back on UID-stripping, but starting from the vendor URL avoids a
+# wasted request on every build.
+RUN import_vendor_key awscli "$AWS_CLI_PGP_FPR" \
+    "$AWS_CLI_PGP_URL" \
+    "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${AWS_CLI_PGP_FPR}" \
+    /opt/keys/awscli.asc /opt/keys/gpg/awscli.gpg
 
 
 
 
 # Show imported keys (optional, quiet)
-RUN gpg --batch --homedir "$GNUPGHOME" --no-default-keyring --keyring /opt/keys/gpg/hashicorp.gpg \
-    --list-keys --with-fingerprint --with-colons | awk -F: '/^fpr:/{print "hashicorp:",$10}'
-RUN if [ -f /opt/keys/gpg/awscli.kbx ]; then \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-    --keyring /opt/keys/gpg/awscli.kbx \
-    --list-keys --with-fingerprint --with-colons \
-    | awk -F: '/^fpr:/{print "aws:",$10}'; \
-    else \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-    --keyring /opt/keys/gpg/awscli.gpg \
-    --list-keys --with-fingerprint --with-colons \
-    | awk -F: '/^fpr:/{print "aws:",$10}'; \
-    fi
-
-RUN if [ -f /opt/keys/gpg/node.kbx ]; then \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-    --keyring /opt/keys/gpg/node.kbx \
-    --list-keys --with-fingerprint --with-colons \
-    | awk -F: '/^fpr:/{print "node:",$10}'; \
-    else \
-    gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
-    --keyring /opt/keys/gpg/node.gpg \
-    --list-keys --with-fingerprint --with-colons \
-    | awk -F: '/^fpr:/{print "node:",$10}'; \
-    fi
+RUN for name in hashicorp opentofu awscli node; do \
+      gpg --batch --homedir "$GNUPGHOME" --no-default-keyring \
+          --keyring "/opt/keys/gpg/${name}.gpg" \
+          --list-keys --with-fingerprint --with-colons \
+      | awk -F: -v n="$name" '/^fpr:/{print n ":", $10}'; \
+    done
 
 
 # ---- Bring in languages, gems, and xorriso compiled on Rocky ----
@@ -519,8 +560,7 @@ RUN ARCH_SYNONYM=$([[ "$TARGETARCH" == "amd64" ]] && echo "x86_64" || echo "aarc
     && FILE="awscliv2.zip" \
     && URL="https://awscli.amazonaws.com/awscli-exe-${TARGETOS}-${ARCH_SYNONYM}.zip" \
     && fetch -o "$FILE" "$URL" \
-    && AWS_RING=$([ -f /opt/keys/gpg/awscli.kbx ] && echo /opt/keys/gpg/awscli.kbx || echo /opt/keys/gpg/awscli.gpg) \
-    && verify_gpg_detached "$AWS_RING" "$FILE" "${URL}.sig" \
+    && verify_gpg_detached /opt/keys/gpg/awscli.gpg "$FILE" "${URL}.sig" \
     && unzip -qq "$FILE" \
     && ./aws/install \
     && rm -rf aws "$FILE" \
@@ -531,8 +571,7 @@ RUN if [ "x${TARGETARCH}" = "xamd64" ]; then \
     FILE="aws-sam-cli-${TARGETOS}-x86_64.zip"; \
     BASE="https://github.com/aws/aws-sam-cli/releases/latest/download"; \
     fetch -o "$FILE" "${BASE}/${FILE}"; \
-    AWS_RING=$([ -f /opt/keys/gpg/awscli.kbx ] && echo /opt/keys/gpg/awscli.kbx || echo /opt/keys/gpg/awscli.gpg); \
-    ( verify_gpg_detached "$AWS_RING" "$FILE" "${BASE}/${FILE}.sig" || echo "WARN: SAM signature not found; continuing" ); \
+    ( verify_gpg_detached /opt/keys/gpg/awscli.gpg "$FILE" "${BASE}/${FILE}.sig" || echo "WARN: SAM signature not found; continuing" ); \
     unzip -qq -d awssam "$FILE" && ./awssam/install && rm -rf awssam "$FILE"; \
     else \
     pip install --no-cache-dir aws-sam-cli; \
@@ -546,8 +585,7 @@ RUN ARCH_NODE=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
     && BASE="https://nodejs.org/dist/v${VER}" \
     && FILE="node-v${VER}-${TARGETOS}-${ARCH_NODE}.tar.xz" \
     && fetch -o "$FILE" "${BASE}/${FILE}" \
-    && KEYRING=$([ -f /opt/keys/gpg/node.kbx ] && echo /opt/keys/gpg/node.kbx || echo /opt/keys/gpg/node.gpg) \
-    && verify_gpg_signed_checksums "$KEYRING" \
+    && verify_gpg_signed_checksums /opt/keys/gpg/node.gpg \
     "${BASE}/SHASUMS256.txt" "${BASE}/SHASUMS256.txt.sig" "$FILE" \
     && xzcat "$FILE" | tar xpf - -C /opt/ \
     && mv "/opt/node-v${VER}-${TARGETOS}-${ARCH_NODE}" /opt/node \
@@ -558,8 +596,16 @@ RUN ARCH_NODE=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || echo "arm64") \
 
 
 # tenv + Terraform + OpenTofu
+# Point tenv at the locally pinned vendor keys (already fingerprint-verified
+# at /opt/keys/*.asc) so tenv does not re-fetch upstream key endpoints at
+# build time, which has tripped on upstream key expiration / rotation.
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && dnf -y install "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm" \
+    && export TFENV_HASHICORP_PGP_KEY=/opt/keys/hashicorp.asc \
+    && export TOFUENV_OPENTOFU_PGP_KEY=/opt/keys/opentofu.asc \
+    && echo "tenv version: $(tenv --version)" \
+    && echo "Using TFENV_HASHICORP_PGP_KEY=${TFENV_HASHICORP_PGP_KEY}" \
+    && echo "Using TOFUENV_OPENTOFU_PGP_KEY=${TOFUENV_OPENTOFU_PGP_KEY}" \
     && tenv tf install ${TERRAFORM_VERSION} \
     && tenv tf use ${TERRAFORM_VERSION} \
     && terraform -version \

@@ -2,9 +2,18 @@
 # tools/refresh-vendor-keys.sh
 # Re-fetch vendor keys and print pinned ENV blocks for your Dockerfile.
 # - HashiCorp: .well-known PGP key (fingerprint verified)
+# - OpenTofu:  get.opentofu.org/opentofu.asc (fingerprint verified)
 # - AWS CLI: derive fingerprint from a real .sig, then fetch key from a keyserver
 #            (fallback to AWS docs scrape only if needed)
 # - Node.js: use curated release keyring; fallback to a pinned allow-list
+#
+# Usage:
+#   ./refresh-vendor-keys.sh                       # prints ENV block to stdout
+#   ./refresh-vendor-keys.sh > vendor-keys.env     # overwrite the vendored file
+#
+# After updating vendor-keys.env, mirror the fingerprint values into the
+# ENV block of docker/Dockerfile.terrarium. The Dockerfile does not source
+# this file (Dockerfile ENV cannot source external files).
 #
 # Notes / sources:
 #   - HashiCorp .well-known PGP key:
@@ -102,6 +111,18 @@ if ! fetch "$hashi_url" "$hashi_asc"; then
 fi
 hashi_fpr="$(fp_from_keyfile "$hashi_asc")"
 : "${hashi_fpr:?failed to compute HashiCorp fingerprint}"
+
+###################
+# OpenTofu release key
+###################
+opentofu_url="${OPENTOFU_URL:-https://get.opentofu.org/opentofu.asc}"
+opentofu_asc="$tmp/opentofu.asc"
+if ! fetch "$opentofu_url" "$opentofu_asc"; then
+  echo "ERROR: could not download OpenTofu key from $opentofu_url" >&2
+  exit 1
+fi
+opentofu_fpr="$(fp_from_keyfile "$opentofu_asc")"
+: "${opentofu_fpr:?failed to compute OpenTofu fingerprint}"
 
 #############
 # AWS CLI key
@@ -204,10 +225,12 @@ cat <<EOF
 # Sources:
 #  - HashiCorp: https://www.hashicorp.com/.well-known/pgp-key.txt
 #    Verified fingerprint documented: https://developer.hashicorp.com/well-architected-framework/operational-excellence/verify-hashicorp-binary
+#  - OpenTofu: https://get.opentofu.org/opentofu.asc (fingerprint verified by importing the ASC)
 #  - AWS CLI: fingerprint derived from real detached signature (.sig), key fetched from keyserver
 #  - Node: curated keyring recommended by Node (fallback to allow-list)
 
 ENV HASHICORP_PGP_FPR=${hashi_fpr} \\
+    OPENTOFU_PGP_FPR=${opentofu_fpr} \\
     AWS_CLI_PGP_URL="${aws_url:-}" \\
     AWS_CLI_PGP_FPR=${aws_fpr} \\
     NODE_RELEASE_FPRS="\\
