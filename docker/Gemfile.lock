@@ -48,7 +48,7 @@ GEM
       train-core (~> 3.13, >= 3.13.4)
       tty-prompt (~> 0.17)
       tty-table (~> 0.10)
-    mixlib-install (3.12.30)
+    mixlib-install (3.16.1)
       mixlib-shellout
       mixlib-versioning
       thor
