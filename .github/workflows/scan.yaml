@@ -11,13 +11,13 @@ on:
   push:
     branches: [master]
     paths:
-      - 'docker/**'
-      - '.github/workflows/scan.yaml'
+      - "docker/**"
+      - ".github/workflows/scan.yaml"
   pull_request:
     branches: [master]
     paths:
-      - 'docker/**'
-      - '.github/workflows/scan.yaml'
+      - "docker/**"
+      - ".github/workflows/scan.yaml"
   # Also run after the build workflow completes (image may now be in GHCR)
   workflow_run:
     workflows: ["Build, test & publish terrarium"]
@@ -31,8 +31,8 @@ on:
         description: "Dump GitHub contexts for debugging"
         type: boolean
         default: false
-  schedule:
-    - cron: "0 6 * * 1"  # Weekly Monday 06:00 UTC
+  # schedule:
+  #   - cron: "0 6 * * 1"  # Weekly Monday 06:00 UTC
 
 permissions:
   contents: read

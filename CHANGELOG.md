@@ -2,7 +2,16 @@
 
 ## [Unreleased]
 
-## [4.8.2] 2026-04-21 — PGP vendor-key unification, tenv expired-key fix, Jenkins-agent tool alignment, Dependabot integration
+## [4.8.1] 2026-04-22 - Housekeeping PR  - PR #72
+
+4.8.1-pre has been tested and appears to be in good shape for a release.
+
+### Changed
+
+- Disabled daily trivy scans to reduce CICD noise
+- Cleaned up changelog to more accurately reflect versioning and releases
+
+## [4.8.1-pre] 2026-04-21 — PGP vendor-key unification, tenv expired-key fix, Jenkins-agent tool alignment, Dependabot integration  - PR #71
 
 ### Added
 
@@ -57,7 +66,7 @@
 - TOOLS_AND_LICENSES: pinned base-image rows to `ubi9/ubi:9.5` and `rockylinux:9.3` to match Dockerfile ARGs.
 - Dockerfile: clarifying comment on the `test` stage explaining it is the deliberate publish target (bats suite intentionally ships in the image for consumer re-runs).
 
-## [4.8.1] - 2026-04-03 — Dockerfile hardening, image slimdown, CI improvements, test reorganisation
+## [4.8.1-pre] - 2026-04-03 — Dockerfile hardening, image slimdown, CI improvements, test reorganisation - PR #61
 
 ### Image slimdown (~350 MB reduction)
 
