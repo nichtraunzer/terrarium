@@ -131,8 +131,8 @@ The following packages are installed via `pyproject.toml` / `uv.lock`:
 
 | Component | Details |
 |-----------|---------|
-| Base image | `registry.access.redhat.com/ubi9/ubi:latest` (Red Hat Universal Base Image 9) |
-| Build stage | `rockylinux:9` (Rocky Linux 9 — RHEL-compatible, BSD-licensed) |
+| Base image | `registry.access.redhat.com/ubi9/ubi:9.5` (Red Hat Universal Base Image 9) |
+| Build stage | `rockylinux:9.3` (Rocky Linux 9 — RHEL-compatible, BSD-licensed) |
 | OS packages | Installed via `dnf` — RPM packages follow their individual upstream licenses (primarily GPL-2.0, LGPL, MIT, BSD) |
 | EPEL | Fedora Extra Packages for Enterprise Linux 9 |
 

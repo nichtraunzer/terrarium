@@ -37,3 +37,19 @@ load 'test_helper/common.bash'
 @test "curl is installed" { check_binary curl; }
 
 @test "sudo is installed" { check_binary sudo; }
+
+@test "ripgrep is installed" {
+  run rg --version
+  assert_success
+  assert_output --partial "ripgrep"
+}
+
+@test "chsh is installed (util-linux-user)" {
+  run chsh --version
+  assert_success
+}
+
+@test "ca-certificates bundle is present" {
+  run test -s /etc/pki/tls/certs/ca-bundle.crt
+  assert_success
+}

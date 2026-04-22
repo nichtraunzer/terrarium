@@ -47,7 +47,7 @@ jobs:
             suffix: -linux-arm64
 
     steps:
-      - uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+      - uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -84,6 +84,14 @@ jobs:
       - name: Build & run tests
         run: |
           GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
+          # Read Dockerfile ARG defaults and pass as --build-arg so buildkit's
+          # cache-from honours version bumps as a cache-key change (without
+          # this, stale cached layers for the tenv/terraform/opentofu install
+          # step can satisfy cache-from hits and mask version updates).
+          arg_val() { grep -m1 "^ARG $1=" docker/Dockerfile.terrarium | cut -d= -f2; }
+          TENV_VERSION=$(arg_val TENV_VERSION)
+          TERRAFORM_VERSION=$(arg_val TERRAFORM_VERSION)
+          OPENTOFU_VERSION=$(arg_val OPENTOFU_VERSION)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
@@ -91,6 +99,9 @@ jobs:
               --target test \
               --platform ${{ matrix.platform }} \
               --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
+              --build-arg TENV_VERSION="${TENV_VERSION}" \
+              --build-arg TERRAFORM_VERSION="${TERRAFORM_VERSION}" \
+              --build-arg OPENTOFU_VERSION="${OPENTOFU_VERSION}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
               ./docker \
@@ -100,7 +111,8 @@ jobs:
             sleep 30
           done
 
-      # Push: build the clean final stage (no test artifacts)
+      # Push: publish the test stage — the bats suite is intentionally shipped
+      # so consumers can re-run it against a running container.
       - name: Build & push final image
         if: github.event_name != 'pull_request'
         env:
@@ -120,15 +132,25 @@ jobs:
           done <<< "$META_LABELS"
 
           GEMFILE_HASH=$(sha256sum docker/Gemfile.lock | cut -d' ' -f1)
+          # Read Dockerfile ARG defaults — passed as --build-arg so buildkit's
+          # cache-from honours version bumps (see comment on the tenv RUN in
+          # docker/Dockerfile.terrarium).
+          arg_val() { grep -m1 "^ARG $1=" docker/Dockerfile.terrarium | cut -d= -f2; }
+          TENV_VERSION=$(arg_val TENV_VERSION)
+          TERRAFORM_VERSION=$(arg_val TERRAFORM_VERSION)
+          OPENTOFU_VERSION=$(arg_val OPENTOFU_VERSION)
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt of 3"
             docker buildx build \
               --file docker/Dockerfile.terrarium \
-              --target final \
+              --target test \
               --platform ${{ matrix.platform }} \
               --push \
               --sbom=true \
               --build-arg GEMFILE_HASH="${GEMFILE_HASH}" \
+              --build-arg TENV_VERSION="${TENV_VERSION}" \
+              --build-arg TERRAFORM_VERSION="${TERRAFORM_VERSION}" \
+              --build-arg OPENTOFU_VERSION="${OPENTOFU_VERSION}" \
               --cache-from type=gha,scope=${{ matrix.platform }} \
               "${tag_args[@]}" "${label_args[@]}" \
               ./docker \
@@ -149,7 +171,7 @@ jobs:
     permissions: { contents: read, packages: write }
 
     steps:
-      - uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+      - uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -177,7 +199,7 @@ jobs:
             type=raw,value=latest
 
       - name: Create and push manifest
-        uses: int128/docker-manifest-create-action@44422a4b046d55dc036df622039ed3aec43c613c # v2.17.0
+        uses: int128/docker-manifest-create-action@3de37de96c4e900bc3eef9055d3c50abdb4f769d # v2.18.0
         with:
           tags: ${{ steps.meta.outputs.tags }}
           sources: |

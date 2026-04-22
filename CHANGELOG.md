@@ -2,15 +2,60 @@
 
 ## [Unreleased]
 
+## [4.8.2] 2026-04-21 — PGP vendor-key unification, tenv expired-key fix, Jenkins-agent tool alignment, Dependabot integration
+
+### Added
+
+- **Unified PGP vendor-key import** — single source of truth for HashiCorp, OpenTofu, AWS CLI, and Node release fingerprints via `docker/vendor-keys/refresh-vendor-keys.sh`. New `print-shell-env` subcommand emits a shell-sourceable `KEY="VAL"` pin file (for `make write-keys`); new `strict` subcommand compares freshly computed fingerprints against the env-pinned values and exits non-zero on drift (for `make check-keys` in CI).
+- **OpenTofu vendored via tenv** — no separate install path; tenv handles both Terraform and OpenTofu.
+- Dev-tooling OS packages added to the builder stage:
+  - `ripgrep` — AI coding agents (Claude Code, Cursor) and `grep -r` power users expect `rg` for fast recursive search.
+  - `util-linux-user` — provides `chsh`, required by the devcontainer `common-utils` feature to switch the default shell (e.g. to zsh).
+  - `ca-certificates` — keep trust anchors up to date for curl/openssl fetches.
+  - `libyaml-devel` — header package kept alongside `libyaml` so downstream images can rebuild native extensions (Ruby psych, Python PyYAML).
+- Three new bats smoke tests in `docker/tests/01_common_dev_tools.bats` for the above — `ripgrep`, `chsh`, and the CA bundle.
+- `make test` alias for `make docker-build-test` with updated README documentation.
+- Local developer helper `scripts/build-test-local.ps1` for line-by-line PowerShell-extension testing.
+- `uv` is pinned in `docker/pyproject.toml` as `uv~=0.11.6`; Dockerfile `UV_VERSION` wiring remains commented out / deferred.
+
 ### Fixed
 
-- **Terrarium user and devtools group moved into builder stage** — the `terrarium` user (UID 1001), `devtools` group (GID 2001), and bats test helpers (bats-support/bats-assert) were previously created only in the `test` stage. The published image (`final`) shipped without a user entry in `/etc/passwd`, breaking downstream consumers. All three are now in the `builder` stage so every downstream stage inherits them.
-- **Removed empty `final` stage** — `builder` is now the complete published image with tests, user, and helpers baked in. The `test` stage remains as a build-time gate that runs bats to validate the image.
-- Tests now ship in the published image for runtime health checks — downstream consumers can run `bats /home/terrarium/tests` to verify the container after deployment.
+- **Terrarium user and devtools group moved into builder stage** — the `terrarium` user (UID 1001), `devtools` group (GID 2001), and bats test helpers (bats-support/bats-assert) were previously created only in the `test` stage. The published image (`final`) shipped without a user entry in `/etc/passwd`, breaking downstream consumers. All three are now in the `builder` stage so the published `test` stage and any other downstream stages inherit them.
+- **Removed empty `final` stage** — the empty `final` stage was removed, and the published image target is the `test` stage built from `builder`, with tests, user, and helpers baked in.
+- Tests now ship in the published `test` image for runtime health checks — downstream consumers can run `bats /home/terrarium/tests` to verify the container after deployment.
+- **`tenv` 4.9.3 → 4.11.1** — `tenv 4.11.0` introduced a fix for PGP signature checking that tolerates the expired HashiCorp release key. The old 4.9.3 pin failed at image-build time because the HashiCorp `.well-known` PGP key had entered the expired window and 4.9.3's `--skip-signature` did not short-circuit before the key was parsed. This unblocks `docker build`.
+- `BUNDLED WITH` in `docker/Gemfile.lock` aligned with `BUNDLER_VERSION` so the builder-stage `bundle check` does not encounter lockfile metadata from a bundler version that is not actually installed in the image.
 
 ### Changed
 
-- Bumped transitive gem dependencies: `csv` 3.3.0 → 3.3.5, `mutex_m` 0.2.0 → 0.3.0.
+- **Tool versions aligned to the ODS Jenkins agent baseline** ([terraform-2408](https://github.com/opendevstack/ods-quickstarters/blob/master/common/jenkins-agents/terraform-2408/docker/Dockerfile.ubi9)):
+  - `AGE_VERSION` 1.3.1 → 1.2.0
+  - `BUNDLER_VERSION` 4.0.9 → 2.5.17
+  - `GO_VERSION` 1.26.1 → 1.21.13
+  - `PACKER_VERSION` 1.15.0 → 1.11.2
+  - `RUBY_VERSION` 3.4.9 → 3.3.4
+  - `TASK_VERSION` 3.49.1 → 3.38.0
+  - `TERRAFORM_DOCS_VERSION` v0.21.0 → v0.18.0
+  - `TERRAFORM_VERSION` 1.14.7 → 1.9.4
+  - `TFLINT_VERSION` 0.61.0 → 0.52.0
+- GitHub Actions (addresses outstanding upstream Dependabot PRs):
+  - `step-security/harden-runner` 2.16.1 → 2.19.0 — closes [nichtraunzer/terrarium#64](https://github.com/nichtraunzer/terrarium/pull/64).
+  - `int128/docker-manifest-create-action` 2.17.0 → 2.18.0 — closes [nichtraunzer/terrarium#65](https://github.com/nichtraunzer/terrarium/pull/65).
+  - `github/codeql-action` 4.35.1 → 4.35.2 — closes [nichtraunzer/terrarium#66](https://github.com/nichtraunzer/terrarium/pull/66).
+- Ruby gems (via `bundle lock --update=<gem>`; addresses outstanding upstream Dependabot PRs):
+  - `syslog` 0.1.2 → 0.4.0 — closes [nichtraunzer/terrarium#58](https://github.com/nichtraunzer/terrarium/pull/58).
+  - `mixlib-install` 3.12.30 → 3.16.1 — closes [nichtraunzer/terrarium#67](https://github.com/nichtraunzer/terrarium/pull/67).
+  - `irb` 1.14.0 → 1.17.0 — closes [nichtraunzer/terrarium#68](https://github.com/nichtraunzer/terrarium/pull/68).
+  - `aws-sdk` 3.2.0 → 3.3.0 — closes [nichtraunzer/terrarium#69](https://github.com/nichtraunzer/terrarium/pull/69).
+  - `test-kitchen` 3.6.0 → 3.9.1 — closes [nichtraunzer/terrarium#70](https://github.com/nichtraunzer/terrarium/pull/70).
+- Other transitive bumps: `addressable` 2.9.0, `csv` 3.3.0 → 3.3.5, `mutex_m` 0.2.0 → 0.3.0.
+- Python tooling: `uv` 0.11.6, `cryptography` 46.0.7.
+
+### Docs
+
+- README: test-layout filenames updated to match `docker/tests/` (`00_os.bats`, `01_common_dev_tools.bats`, `07_node_npm.bats`, `10_python.bats`, `30_cloud_platforms.bats`, `95_slimdown.bats`); dead `python_requirements` link replaced with `docker/pyproject.toml` + `docker/uv.lock` with a `uv lock` refresh hint.
+- TOOLS_AND_LICENSES: pinned base-image rows to `ubi9/ubi:9.5` and `rockylinux:9.3` to match Dockerfile ARGs.
+- Dockerfile: clarifying comment on the `test` stage explaining it is the deliberate publish target (bats suite intentionally ships in the image for consumer re-runs).
 
 ## [4.8.1] - 2026-04-03 — Dockerfile hardening, image slimdown, CI improvements, test reorganisation
 
