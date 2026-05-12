@@ -84,7 +84,7 @@ jobs:
       # Full image scan — only when a published image is available
       - name: Trivy image scan
         if: steps.pull.outcome == 'success'
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository }}:latest-${{ matrix.suffix }}
           format: sarif
@@ -98,7 +98,7 @@ jobs:
       # (avoids building the full image which times out the runner)
       - name: Trivy filesystem scan (no published image)
         if: steps.pull.outcome != 'success'
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: docker/
